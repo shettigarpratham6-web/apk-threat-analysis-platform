@@ -4,7 +4,7 @@ import logging
 import os
 from typing import Optional
 
-from fastapi import APIRouter, Form, HTTPException, status
+from fastapi import APIRouter, Form, HTTPException, status, Query
 from fastapi.responses import FileResponse, HTMLResponse
 
 from backend.app.reporting.report_generator import generate_report
@@ -15,39 +15,16 @@ logger = logging.getLogger("reporting_routes")
 RESULTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "results"))
 
 
-@router.post("/generate")
-async def generate_forensic_report(
-    apk_id: Optional[str] = Form(None),
-):
+@router.post("/generate/{apk_id}")
+async def generate_forensic_report(apk_id: str):
     """
-    Generates PDF and HTML forensic report artifacts for the given apk_id.
+    Generates PDF, HTML, and JSON forensic report artifacts for the given apk_id.
     """
-    if not apk_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Field 'apk_id' is required.",
-        )
-
-    correlation_file = os.path.join(RESULTS_DIR, f"{apk_id}_correlation.json")
-    if not os.path.exists(correlation_file):
-        # Trigger automatic correlation if missing or proceed with available data
-        from backend.app.correlation.aggregator import correlate_apk
-
-        try:
-            correlate_apk(apk_id)
-        except Exception as exc:
-            logger.warning(f"Failed to auto-generate correlation results for '{apk_id}': {exc}")
-
     try:
-        pdf_path = generate_report(apk_id)
-        html_path = os.path.join(RESULTS_DIR, f"{apk_id}_report.html")
-
-        return {
-            "apk_id": apk_id,
-            "pdf_path": pdf_path,
-            "html_path": html_path,
-            "message": f"Forensic report generated successfully for apk_id '{apk_id}'.",
-        }
+        urls = generate_report(apk_id)
+        return urls
+    except FileNotFoundError as fnf:
+        raise HTTPException(status_code=404, detail=str(fnf))
     except Exception as err:
         logger.error(f"Error generating forensic report for apk_id '{apk_id}': {err}")
         raise HTTPException(
@@ -56,36 +33,49 @@ async def generate_forensic_report(
         )
 
 
-@router.get("/{apk_id}/download")
-async def download_pdf_report(apk_id: str):
+@router.get("/download/{apk_id}")
+async def download_report(apk_id: str, format: str = Query("pdf")):
     """
-    Downloads the compiled PDF forensic report file.
+    Downloads the compiled PDF or JSON forensic report file.
     """
-    pdf_path = os.path.join(RESULTS_DIR, f"{apk_id}_report.pdf")
-    if not os.path.exists(pdf_path):
+    if format == "json":
+        file_path = os.path.join(RESULTS_DIR, f"{apk_id}_report.json")
+        media_type = "application/json"
+        filename = f"{apk_id}_report.json"
+    elif format == "csv":
+        file_path = os.path.join(RESULTS_DIR, f"{apk_id}_ioc.csv")
+        media_type = "text/csv"
+        filename = f"{apk_id}_ioc.csv"
+    elif format == "ioc":
+        file_path = os.path.join(RESULTS_DIR, f"{apk_id}_ioc.json")
+        media_type = "application/json"
+        filename = f"{apk_id}_ioc.json"
+    else:
+        file_path = os.path.join(RESULTS_DIR, f"{apk_id}_report.pdf")
+        media_type = "application/pdf"
+        filename = f"{apk_id}_report.pdf"
+
+    if not os.path.exists(file_path):
         # Try generating report if not present
         try:
-            pdf_path = generate_report(apk_id)
+            generate_report(apk_id)
         except Exception as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"PDF report for apk_id '{apk_id}' not found and generation failed: {str(exc)}",
+                detail=f"Report file not found and generation failed: {str(exc)}",
             )
 
-    if not os.path.exists(pdf_path):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"PDF report file for apk_id '{apk_id}' was not found.",
-        )
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Report file could not be generated.")
 
     return FileResponse(
-        path=pdf_path,
-        media_type="application/pdf",
-        filename=f"{apk_id}_report.pdf",
+        path=file_path,
+        media_type=media_type,
+        filename=filename,
     )
 
 
-@router.get("/{apk_id}/view")
+@router.get("/view/{apk_id}")
 async def view_html_report(apk_id: str):
     """
     Renders raw HTML forensic report directly in the browser.
@@ -97,21 +87,12 @@ async def view_html_report(apk_id: str):
         except Exception as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"HTML report for apk_id '{apk_id}' not found and generation failed: {str(exc)}",
+                detail=f"HTML report not found and generation failed: {str(exc)}",
             )
-
-    if not os.path.exists(html_path):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"HTML report file for apk_id '{apk_id}' was not found.",
-        )
 
     try:
         with open(html_path, "r", encoding="utf-8") as hf:
             html_content = hf.read()
         return HTMLResponse(content=html_content, status_code=200)
     except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to read HTML report for apk_id '{apk_id}': {str(exc)}",
-        )
+        raise HTTPException(status_code=500, detail=str(exc))

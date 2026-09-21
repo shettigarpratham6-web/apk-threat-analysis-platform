@@ -7,169 +7,99 @@ import ResultsPanel from "./components/ResultsPanel";
 import RiskBanner from "./components/RiskBanner";
 import ReportViewer from "./components/ReportViewer";
 
-import {
-  startSandbox,
-  runApk,
-  monitorBehavior,
-  detectC2,
-  checkServers,
-  correlate,
-  generateReport,
-} from "./api/client";
+import { uploadAndAnalyzeStatic } from "./api/client";
 
-const INITIAL_STAGES = [
-  {
-    id: "static",
-    title: "1. Static Analysis",
-    subtitle: "Manifest, Code Scan, YARA & Signatures",
-    status: "pending",
-  },
-  {
-    id: "sandbox_start",
-    title: "2. Launch Sandbox",
-    subtitle: "Spawn Android Emulator & Poll ADB",
-    status: "pending",
-  },
-  {
-    id: "apk_run",
-    title: "3. Run APK Safely",
-    subtitle: "Install & Launch target package",
-    status: "pending",
-  },
-  {
-    id: "monitor",
-    title: "4. Behavior Monitoring",
-    subtitle: "mitmproxy traffic & Frida API hooks",
-    status: "pending",
-  },
-  {
-    id: "c2_detect",
-    title: "5. C2 Detection",
-    subtitle: "Beaconing & raw IP pattern heuristic",
-    status: "pending",
-  },
-  {
-    id: "servers",
-    title: "6. Suspicious Servers",
-    subtitle: "AbuseIPDB & VirusTotal reputation",
-    status: "pending",
-  },
-  {
-    id: "correlation_report",
-    title: "7. Correlation & Report",
-    subtitle: "Unified Risk Score & PDF/HTML Report",
-    status: "pending",
-  },
+const STATIC_STAGES = [
+  { id: "upload", title: "1. Upload APK", subtitle: "Submit file to backend", status: "pending" },
+  { id: "extract", title: "2. Extract APK", subtitle: "Secure unzip & tree generation", status: "pending" },
+  { id: "manifest", title: "3. Manifest Scan", subtitle: "Permissions & Components", status: "pending" },
+  { id: "permissions", title: "4. Permission Analysis", subtitle: "Risk categorization", status: "pending" },
+  { id: "code", title: "5. DEX Code Scan", subtitle: "URLs, IPs & Suspicious APIs", status: "pending" },
+  { id: "resources", title: "6. Resource Scan", subtitle: "Secrets & API Keys", status: "pending" },
+  { id: "native", title: "7. Native Library Scan", subtitle: "ABI & Suspicious SOs", status: "pending" },
+  { id: "yara", title: "8. YARA Scan", subtitle: "Signature matching", status: "pending" },
+  { id: "risk", title: "9. Risk Correlation", subtitle: "Threat scoring", status: "pending" },
+  { id: "report", title: "10. Threat Report", subtitle: "Forensic documentation", status: "pending" },
 ];
 
 export default function App() {
-  const [stages, setStages] = useState(INITIAL_STAGES);
+  const [stages, setStages] = useState(STATIC_STAGES);
   const [currentStageIndex, setCurrentStageIndex] = useState(0);
   const [apkId, setApkId] = useState(null);
-  const [packageName, setPackageName] = useState(null);
   const [stageResults, setStageResults] = useState({});
-  const [isRunning, setIsRunning] = useState(false);
   const [globalError, setGlobalError] = useState(null);
+  const [isRunning, setIsRunning] = useState(false);
 
   const updateStageStatus = (index, status) => {
     setStages((prev) => {
       const copy = [...prev];
-      copy[index] = { ...copy[index], status };
+      if (copy[index]) {
+          copy[index] = { ...copy[index], status };
+      }
       return copy;
     });
   };
 
-  const handleUploadSuccess = (data) => {
-    setGlobalError(null);
-    const resolvedApkId = data.apk_id;
-    const resolvedPackageName =
-      data.static_analysis?.manifest?.package_name ||
-      data.static_analysis?.package_name ||
-      "com.example.threattest";
-
-    setApkId(resolvedApkId);
-    setPackageName(resolvedPackageName);
-
-    setStageResults((prev) => ({
-      ...prev,
-      0: data,
-    }));
-
-    updateStageStatus(0, "completed");
-    setCurrentStageIndex(1);
-  };
-
-  const executeStage = async (stageIdx) => {
-    if (!apkId && stageIdx > 0) {
-      setGlobalError("Please upload an APK file first.");
-      return null;
+  const handleUploadAndAnalyze = async (file) => {
+    if (!file) {
+      setGlobalError("Please select a valid .apk file first.");
+      return;
     }
-
     setGlobalError(null);
     setIsRunning(true);
-    updateStageStatus(stageIdx, "running");
+    setStages(STATIC_STAGES.map(s => ({ ...s, status: "pending" })));
+    setStageResults({});
+    setCurrentStageIndex(0);
+    updateStageStatus(0, "running");
+
+    // Artificial animation of stages while API loads
+    let fakeIdx = 1;
+    const fakeInterval = setInterval(() => {
+        if(fakeIdx < 7) {
+            updateStageStatus(fakeIdx - 1, "completed");
+            updateStageStatus(fakeIdx, "running");
+            setCurrentStageIndex(fakeIdx);
+            fakeIdx++;
+        }
+    }, 3000); // 3 seconds per stage
 
     try {
-      let result = null;
+      const data = await uploadAndAnalyzeStatic(file);
+      clearInterval(fakeInterval);
+      
+      setApkId(data.apk_id);
 
-      if (stageIdx === 1) {
-        result = await startSandbox();
-      } else if (stageIdx === 2) {
-        result = await runApk(apkId);
-        if (result.package_name) {
-          setPackageName(result.package_name);
-        }
-      } else if (stageIdx === 3) {
-        result = await monitorBehavior(apkId, packageName, 5);
-      } else if (stageIdx === 4) {
-        result = await detectC2(apkId);
-      } else if (stageIdx === 5) {
-        result = await checkServers(apkId);
-      } else if (stageIdx === 6) {
-        const corrRes = await correlate(apkId);
-        const repRes = await generateReport(apkId);
-        result = { ...corrRes, report: repRes };
-      }
+      // Map backend results to frontend stages
+      const mappedResults = {
+        0: { metadata: data.metadata },
+        1: { extraction: data.extraction },
+        2: { manifest: data.manifest_analysis },
+        3: { permissions: data.manifest_analysis?.permissions },
+        4: { code_analysis: data.code_analysis },
+        5: { resource_analysis: data.resource_analysis },
+        6: { native_library_analysis: data.native_library_analysis },
+        7: { yara_matches: data.yara_matches },
+        8: { risk_analysis: data.risk_analysis },
+        9: { report: true, apkId: data.apk_id }
+      };
 
-      setStageResults((prev) => ({
-        ...prev,
-        [stageIdx]: result,
-      }));
+      setStageResults(mappedResults);
 
-      updateStageStatus(stageIdx, "completed");
-      setIsRunning(false);
-      return result;
-    } catch (err) {
-      updateStageStatus(stageIdx, "error");
-      setGlobalError(`Stage ${stageIdx + 1} Error: ${err.message}`);
-      setIsRunning(false);
-      throw err;
-    }
-  };
-
-  const handleRunNextStage = async () => {
-    const nextIdx = stages.findIndex((s) => s.status !== "completed");
-    if (nextIdx !== -1) {
-      setCurrentStageIndex(nextIdx);
-      try {
-        await executeStage(nextIdx);
-        if (nextIdx < stages.length - 1) {
-          setCurrentStageIndex(nextIdx + 1);
-        }
-      } catch (_) {}
-    }
-  };
-
-  const handleRunAllRemaining = async () => {
-    for (let i = 0; i < stages.length; i++) {
-      if (stages[i].status !== "completed") {
+      // Rapidly complete remaining stages
+      const delay = (ms) => new Promise(res => setTimeout(res, ms));
+      for(let i = fakeIdx - 1; i < STATIC_STAGES.length; i++) {
         setCurrentStageIndex(i);
-        try {
-          await executeStage(i);
-        } catch (_) {
-          break;
-        }
+        updateStageStatus(i, "running");
+        await delay(600);
+        updateStageStatus(i, "completed");
       }
+      setCurrentStageIndex(9); // end at report
+    } catch (err) {
+      clearInterval(fakeInterval);
+      setGlobalError(`Analysis failed: ${err.message}`);
+      updateStageStatus(fakeIdx - 1, "error");
+    } finally {
+      setIsRunning(false);
     }
   };
 
@@ -181,7 +111,7 @@ export default function App() {
           <div>
             <h1 className="brand-title">APK Threat Analysis Platform</h1>
             <p className="brand-subtitle">
-              Automated Static, Sandbox Dynamic & C2 Forensic Inspection System
+              Automated Static Analysis & Cyber-Forensic Inspection System
             </p>
           </div>
         </div>
@@ -195,37 +125,31 @@ export default function App() {
         {globalError && <div className="error-banner">{globalError}</div>}
 
         <div className="dashboard-grid">
-          {/* Left Column: Upload & Pipeline Stepper */}
           <div className="sidebar-col" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <UploadPanel
-              onUploadSuccess={handleUploadSuccess}
-              onError={(err) => setGlobalError(err)}
+              onUpload={handleUploadAndAnalyze}
+              isRunning={isRunning}
             />
 
             <PipelineStepper
               stages={stages}
               currentStageIndex={currentStageIndex}
               onSelectStage={(idx) => setCurrentStageIndex(idx)}
-              onRunNextStage={handleRunNextStage}
-              onRunAllRemaining={handleRunAllRemaining}
               isRunning={isRunning}
               hasApk={Boolean(apkId)}
             />
           </div>
 
-          {/* Right Column: Stage Inspection, Risk Banner & Final Report */}
           <div className="main-panel-col" style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-            {/* Risk Banner (Appears when Stage 6 Correlation is completed) */}
-            {stageResults[6] && <RiskBanner correlationData={stageResults[6]} />}
+            {stageResults[8] && <RiskBanner correlationData={stageResults[8].risk_analysis} />}
 
-            {/* Results Inspection for Selected Stage */}
             <ResultsPanel
               stageName={stages[currentStageIndex]?.title || "Inspection View"}
               data={stageResults[currentStageIndex]}
+              stageId={stages[currentStageIndex]?.id}
             />
 
-            {/* Final Report Viewer (Appears when Stage 6 Correlation/Report is completed) */}
-            {stageResults[6] && <ReportViewer apkId={apkId} />}
+            {stageResults[9] && currentStageIndex === 9 && <ReportViewer apkId={apkId} />}
           </div>
         </div>
       </main>

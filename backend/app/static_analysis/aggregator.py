@@ -1,127 +1,168 @@
-"""Aggregator module unifying manifest analysis, code analysis, and signature checking into Static Results."""
+"""Phase 9: Static Risk Correlation Engine"""
+from typing import Dict, Any, List
 
-import logging
-from typing import Any, Dict, List
-
-from backend.app.static_analysis.apk_loader import extract_apk
-from backend.app.static_analysis.manifest_check import analyze_manifest
-from backend.app.static_analysis.code_analysis import analyze_code
-from backend.app.static_analysis.signature_check import run_yara_scan, check_virustotal
-
-logger = logging.getLogger("aggregator")
-
-
-def _compute_static_risk_indicators(
-    manifest_data: Dict[str, Any],
-    code_data: Dict[str, Any],
-    yara_matches: List[Dict[str, Any]],
-    vt_data: Dict[str, Any],
-) -> List[str]:
-    """
-    Computes rule-based plain-English static risk indicator flags.
-
-    :param manifest_data: Parsed manifest dictionary.
-    :param code_data: Extracted code analysis dictionary.
-    :param yara_matches: List of YARA rule matches.
-    :param vt_data: VirusTotal check results.
-    :return: List of risk indicator strings.
-    """
-    indicators: List[str] = []
-
-    # 1. Manifest permission rules
-    permissions = manifest_data.get("permissions", {})
-    requested = set(permissions.get("requested", []))
-    dangerous = set(permissions.get("dangerous", []))
-
-    if any("SMS" in p for p in dangerous):
-        indicators.append("Requests sensitive SMS permissions")
-
-    if ("android.permission.SEND_SMS" in requested or "android.permission.RECEIVE_SMS" in requested) and (
-        "android.intent.action.BOOT_COMPLETED" in requested
-        or "android.permission.RECEIVE_BOOT_COMPLETED" in requested
-        or "android.app.action.DEVICE_ADMIN_ENABLED" in requested
-    ):
-        indicators.append("Requests risky permission combination (SMS + Boot/Device Admin)")
-
-    if "android.permission.SYSTEM_ALERT_WINDOW" in requested or "android.permission.BIND_ACCESSIBILITY_SERVICE" in requested:
-        indicators.append("Requests sensitive System Overlay / Accessibility Service permission")
-
-    # 2. Code analysis rules
-    ip_addresses = code_data.get("ip_addresses", [])
-    if ip_addresses:
-        indicators.append(f"Contains hardcoded IPv4 address(es) ({len(ip_addresses)} found)")
-
-    urls = code_data.get("urls", [])
-    if urls:
-        indicators.append(f"Contains embedded HTTP/HTTPS URL(s) ({len(urls)} found)")
-
-    suspicious_apis = code_data.get("suspicious_apis", [])
-    api_names = {item.get("api", "") for item in suspicious_apis}
-
-    if "Runtime.exec" in api_names or "ProcessBuilder" in api_names:
-        indicators.append("Uses command execution API (Runtime.exec / ProcessBuilder)")
-
-    if "DexClassLoader" in api_names or "PathClassLoader" in api_names:
-        indicators.append("Uses dynamic DEX code loading API (DexClassLoader)")
-
-    if "Class.forName" in api_names or "getMethod" in api_names or "getDeclaredMethod" in api_names:
-        indicators.append("Uses Java reflection API for dynamic invocation")
-
-    if "Cipher.getInstance" in api_names:
-        indicators.append("Uses Java Cryptography API (Cipher.getInstance)")
-
-    # 3. YARA signature rules
-    for match in yara_matches:
-        rule_name = match.get("rule", "Unknown")
-        indicators.append(f"Matched YARA rule: {rule_name}")
-
-    # 4. VirusTotal rules
-    if vt_data.get("status") == "completed":
-        positives = vt_data.get("positives", 0)
-        total = vt_data.get("total", 0)
-        if positives > 0:
-            indicators.append(f"VirusTotal flagged as malicious ({positives}/{total} security vendors)")
-
-    # Deduplicate indicators preserving order
-    return list(dict.fromkeys(indicators))
-
-
-def run_static_analysis(apk_path: str) -> Dict[str, Any]:
-    """
-    Executes unified static analysis pipeline (manifest, bytecode scan, YARA signatures, VT lookup).
-
-    :param apk_path: Path to the target APK file on disk.
-    :return: Combined static results dictionary.
-    """
-    logger.info(f"Executing unified static analysis pipeline for: {apk_path}")
-
-    # 1. Parse manifest once
-    apk_obj = extract_apk(apk_path)
-    manifest_data = analyze_manifest(apk_obj)
-    package_name = manifest_data.get("package_name")
-
-    # 2. Perform bytecode code scan
-    code_data = analyze_code(apk_path)
-
-    # 3. Perform signature checks
-    yara_matches = run_yara_scan(apk_path)
-    vt_data = check_virustotal(apk_path)
-
-    # 4. Compute static risk indicators
-    risk_indicators = _compute_static_risk_indicators(
-        manifest_data=manifest_data,
-        code_data=code_data,
-        yara_matches=yara_matches,
-        vt_data=vt_data,
-    )
-
+def calculate_risk(manifest: Dict, code: Dict, resources: Dict, natives: Dict, yara: List, certs: List) -> Dict[str, Any]:
+    """Calculates risk score 0-100 based on all static analysis findings."""
+    score = 0
+    factors = []
+    recommendations = set()
+    
+    # 1. Manifest Analysis
+    if manifest.get("permissions"):
+        for perm in manifest["permissions"]:
+            if perm.get("severity") == "Critical":
+                score += 15
+                factors.append(f"Critical permission: {perm['name']}")
+                recommendations.add(f"Review necessity of {perm['name']}")
+            elif perm.get("severity") == "High":
+                score += 10
+                factors.append(f"High risk permission: {perm['name']}")
+                
+    if manifest.get("security_flags", {}).get("debuggable") == True:
+        score += 10
+        factors.append("App is debuggable (android:debuggable=true)")
+        recommendations.add("Set android:debuggable to false for release.")
+        
+    if manifest.get("security_flags", {}).get("allowBackup") == True:
+        score += 5
+        factors.append("App allows backup (android:allowBackup=true)")
+        
+    # 2. Code Analysis
+    if code.get("suspicious_apis"):
+        for api in code["suspicious_apis"]:
+            if api.get("severity") == "High":
+                score += 10
+                factors.append(f"High risk API usage: {api['api']}")
+                recommendations.add(f"Avoid or secure usage of {api['api']}.")
+            elif api.get("severity") == "Medium":
+                score += 5
+                
+    if code.get("malware_indicators"):
+        for ind in code["malware_indicators"]:
+            if ind.get("severity") == "Critical":
+                score += 25
+                factors.append(f"Critical malware indicator: {ind['why_flagged']}")
+            elif ind.get("severity") == "High":
+                score += 15
+                factors.append(f"High malware indicator: {ind['why_flagged']}")
+                
+    # 3. Resource Analysis
+    if resources.get("secrets"):
+        score += 20
+        factors.append(f"Found {len(resources['secrets'])} exposed secrets/keys in resources.")
+        recommendations.add("Remove hardcoded API keys and secrets from assets/res.")
+        
+    # 4. Native Library Analysis
+    if natives.get("suspicious_libraries"):
+        score += 15
+        factors.append(f"Found {len(natives['suspicious_libraries'])} suspicious native libraries.")
+        
+    # 5. YARA Matches
+    for match in yara:
+        if match.get("severity") == "Critical":
+            score += 25
+            factors.append(f"Critical YARA signature match: {match['rule_name']}")
+        elif match.get("severity") == "High":
+            score += 15
+            factors.append(f"High YARA signature match: {match['rule_name']}")
+        else:
+            score += 5
+            factors.append(f"YARA signature match: {match['rule_name']}")
+            
+    # 6. Misconfigurations
+    if manifest.get("misconfigurations"):
+        for m in manifest["misconfigurations"]:
+            if m.get("severity") == "Critical": score += 10
+            elif m.get("severity") == "High": score += 5
+            elif m.get("severity") == "Medium": score += 2
+            factors.append(m["title"])
+            recommendations.add(m["recommendation"])
+            
+    # 7. Certificates
+    if certs and isinstance(certs, list):
+        for cert in certs:
+            if cert.get("self_signed"):
+                score += 15
+                factors.append("APK is signed with a self-signed certificate.")
+                recommendations.add("Sign the APK with a trusted CA certificate for production.")
+                
+    # 8. Obfuscation
+    obfuscations = code.get("obfuscation_findings", [])
+    if obfuscations:
+        score += 10
+        factors.append(f"Found {len(obfuscations)} highly obfuscated strings/payloads.")
+        recommendations.add("Review high entropy strings to ensure they do not conceal malicious payloads.")
+            
+    # Cap score
+    score = min(score, 100)
+    
+    # Determine level
+    if score >= 80:
+        level = "Critical"
+    elif score >= 60:
+        level = "High"
+    elif score >= 40:
+        level = "Medium"
+    elif score >= 20:
+        level = "Low"
+    else:
+        level = "Safe"
+        
     return {
-        "package_name": package_name,
-        "manifest": manifest_data,
-        "code_analysis": code_data,
-        "signature_check": {
-            "yara_matches": yara_matches,
-            "virustotal": vt_data,
-        },
-        "static_risk_indicators": risk_indicators,
+        "score": score,
+        "level": level,
+        "factors": factors,
+        "recommendations": list(recommendations)
     }
+
+def generate_iocs(metadata: Dict, code: Dict, resources: Dict, certs: List) -> Dict[str, Any]:
+    """Generates an aggregated list of Indicators of Compromise (IOCs)."""
+    iocs = {
+        "hashes": [],
+        "network": {
+            "urls": code.get("network_indicators", {}).get("urls", []),
+            "domains": code.get("network_indicators", {}).get("domains", []),
+            "ipv4": code.get("network_indicators", {}).get("ipv4", []),
+            "ipv6": code.get("network_indicators", {}).get("ipv6", []),
+            "emails": code.get("network_indicators", {}).get("emails", [])
+        },
+        "certificates": [],
+        "secrets": []
+    }
+    
+    if metadata:
+        if metadata.get("sha256"): iocs["hashes"].append({"type": "sha256", "value": metadata["sha256"]})
+        if metadata.get("md5"): iocs["hashes"].append({"type": "md5", "value": metadata["md5"]})
+        
+    if certs and isinstance(certs, list):
+        for c in certs:
+            if c.get("sha1"): iocs["certificates"].append({"type": "sha1", "value": c["sha1"], "issuer": c.get("issuer")})
+            if c.get("sha256"): iocs["certificates"].append({"type": "sha256", "value": c["sha256"], "issuer": c.get("issuer")})
+            
+    if resources.get("secrets"):
+        for sec in resources["secrets"]:
+            iocs["secrets"].append({"type": sec.get("type", "unknown"), "value": sec.get("value", "")})
+            
+    return iocs
+
+def generate_ioc_csv(iocs: Dict, filepath: str) -> None:
+    """Exports IOC dictionary to a flat CSV format."""
+    import csv
+    with open(filepath, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(["Category", "Type", "Value"])
+        
+        for h in iocs.get("hashes", []):
+            writer.writerow(["Hash", h["type"], h["value"]])
+            
+        net = iocs.get("network", {})
+        for url in net.get("urls", []): writer.writerow(["Network", "URL", url])
+        for dom in net.get("domains", []): writer.writerow(["Network", "Domain", dom])
+        for ip in net.get("ipv4", []): writer.writerow(["Network", "IPv4", ip])
+        for email in net.get("emails", []): writer.writerow(["Network", "Email", email])
+        
+        for c in iocs.get("certificates", []):
+            writer.writerow(["Certificate", c["type"], f"{c['value']} (Issuer: {c.get('issuer')})"])
+            
+        for s in iocs.get("secrets", []):
+            writer.writerow(["Secret", s["type"], s["value"]])

@@ -11,3 +11,13 @@ mitmproxy>=10.0.0
 jinja2>=3.1.0
 weasyprint>=70.0
 reportlab>=5.0.0
+apkutils2
+aiofiles
+python-dotenv
+loguru
+rich
+lxml
+pillow
+beautifulsoup4
+networkx
+pyOpenSSL

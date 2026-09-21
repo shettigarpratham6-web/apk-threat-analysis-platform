@@ -2,365 +2,425 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>APK Threat Analysis Forensic Report</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APK Threat Analysis Report</title>
     <style>
-        @page {
-            size: A4;
-            margin: 20mm 15mm;
+        :root {
+            --bg-color: #0f172a;
+            --surface: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --primary: #3b82f6;
+            --success: #22c55e;
+            --warning: #eab308;
+            --danger: #ef4444;
+            --critical: #b91c1c;
         }
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            color: #1e293b;
-            background-color: #ffffff;
-            line-height: 1.5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
             margin: 0;
-            padding: 0;
-        }
-        .header-container {
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 12px;
-            margin-bottom: 20px;
-        }
-        .title {
-            font-size: 24px;
-            font-weight: 700;
-            color: #0f172a;
-            margin: 0 0 6px 0;
-        }
-        .subtitle {
-            font-size: 13px;
-            color: #64748b;
-            margin: 0;
-        }
-        .meta-grid {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 10px;
-            font-size: 12px;
-            color: #475569;
+            padding: 20px;
         }
         
-        /* Banner Color Coding */
-        .banner {
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        
+        h1, h2, h3 {
+            color: var(--text-main);
+        }
+        
+        h2 {
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 5px;
+            margin-top: 40px;
+        }
+        
+        .card {
+            background-color: var(--surface);
             border-radius: 8px;
-            padding: 16px 20px;
-            margin-bottom: 24px;
-            color: #ffffff;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
         }
-        .banner.low { background-color: #16a34a; }
-        .banner.medium { background-color: #ca8a04; }
-        .banner.high { background-color: #ea580c; }
-        .banner.critical { background-color: #dc2626; }
         
-        .banner-score {
-            font-size: 32px;
-            font-weight: 800;
-            line-height: 1;
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
         }
-        .banner-label {
+        
+        .stat-box {
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid var(--primary);
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        
+        .stat-value {
             font-size: 20px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .section {
-            margin-bottom: 22px;
-        }
-        .section-title {
-            font-size: 16px;
-            font-weight: 700;
-            color: #0f172a;
-            border-left: 4px solid #3b82f6;
-            padding-left: 10px;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            font-weight: bold;
+            word-break: break-all;
         }
         
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 8px;
-            font-size: 12px;
+            margin-top: 15px;
         }
+        
         th, td {
+            padding: 12px;
             text-align: left;
-            padding: 8px 10px;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid var(--border);
         }
+        
         th {
-            background-color: #f8fafc;
-            color: #475569;
-            font-weight: 600;
+            background-color: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
         }
-        tr:nth-child(even) {
-            background-color: #f8fafc;
-        }
-
+        
         .badge {
-            display: inline-block;
-            padding: 2px 8px;
+            padding: 4px 8px;
             border-radius: 4px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
+            font-size: 12px;
+            font-weight: bold;
         }
-        .badge.high, .badge.malicious { background-color: #fee2e2; color: #991b1b; }
-        .badge.medium, .badge.suspicious { background-color: #fef3c7; color: #92400e; }
-        .badge.low, .badge.clean { background-color: #dcfce7; color: #166534; }
-        .badge.unverified { background-color: #f1f5f9; color: #475569; }
-
-        .list-group {
-            margin: 0;
-            padding-left: 20px;
-            font-size: 13px;
-        }
-        .list-group li {
-            margin-bottom: 4px;
-        }
+        
+        .badge-critical { background-color: var(--critical); color: white; }
+        .badge-high { background-color: var(--danger); color: white; }
+        .badge-medium { background-color: var(--warning); color: black; }
+        .badge-normal { background-color: var(--success); color: white; }
+        
         .code-block {
             font-family: monospace;
-            background: #f1f5f9;
-            padding: 2px 6px;
+            background-color: #000;
+            padding: 10px;
             border-radius: 4px;
-            font-size: 11px;
+            color: #10b981;
+            overflow-x: auto;
         }
-        .footer {
-            margin-top: 30px;
-            border-top: 1px solid #e2e8f0;
-            padding-top: 10px;
-            text-align: center;
-            font-size: 11px;
-            color: #94a3b8;
+
+        .risk-banner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .risk-banner.critical { background: linear-gradient(135deg, #7f1d1d, #b91c1c); }
+        .risk-banner.high { background: linear-gradient(135deg, #991b1b, #ef4444); }
+        .risk-banner.medium { background: linear-gradient(135deg, #854d0e, #eab308); color: black; }
+        .risk-banner.low { background: linear-gradient(135deg, #166534, #22c55e); }
+        .risk-banner.safe { background: linear-gradient(135deg, #065f46, #10b981); }
+
+        .score-circle {
+            font-size: 48px;
+            font-weight: bold;
+        }
+        
+        ul {
+            padding-left: 20px;
         }
     </style>
 </head>
 <body>
 
-    <div class="header-container">
-        <h1 class="title">APK Threat Analysis Forensic Report</h1>
-        <p class="subtitle">Automated Static & Dynamic Malware Inspection Platform</p>
-        <div class="meta-grid">
-            <div><strong>Package:</strong> <span class="code-block">{{ package_name }}</span></div>
-            <div><strong>APK ID:</strong> <span class="code-block">{{ apk_id }}</span></div>
-            <div><strong>Generated:</strong> {{ generated_date }}</div>
-        </div>
+<div class="container">
+    <div class="header">
+        <h1>APK Threat Analysis Platform</h1>
+        <p>Cyber-Forensic Static Analysis Report</p>
     </div>
 
-    <!-- Risk Score Banner -->
-    <div class="banner {{ risk_label.split()[0].lower() }}">
+    <!-- Risk Banner -->
+    <div class="risk-banner {{ risk_analysis.level | lower }}">
         <div>
-            <div class="banner-label">{{ risk_label }}</div>
-            <div style="font-size: 12px; opacity: 0.9;">Unified Multi-Stage Threat Evaluation</div>
+            <h2 style="margin:0; border:none; padding:0;">THREAT LEVEL: {{ risk_analysis.level | upper }}</h2>
+            <p style="margin:5px 0 0 0;">Automated Static Correlation Engine</p>
         </div>
-        <div class="banner-score">{{ risk_score }} / 100</div>
+        <div class="score-circle">
+            {{ risk_analysis.score }} / 100
+        </div>
     </div>
 
-    <!-- Executive Risk Assessment -->
-    <div class="section">
-        <div class="section-title">Key Risk Contributing Factors</div>
-        <ul class="list-group">
-            {% for factor in contributing_factors %}
+    <!-- Cover Details -->
+    <div class="card grid">
+        <div class="stat-box">
+            <div class="stat-label">APK Name</div>
+            <div class="stat-value">{{ metadata.filename }}</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">Package Name</div>
+            <div class="stat-value">{{ manifest_analysis.metadata.package_name }}</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">SHA256</div>
+            <div class="stat-value" style="font-size: 14px;">{{ metadata.sha256 }}</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">Generated On</div>
+            <div class="stat-value">{{ generated_date }}</div>
+        </div>
+    </div>
+
+    <!-- Executive Summary & Recommendations -->
+    <div class="card">
+        <h2>Executive Summary & Recommendations</h2>
+        <p>This report documents the static analysis findings for the submitted APK. The analysis engine performed manifest parsing, DEX bytecode scanning, resource secret extraction, native library validation, and YARA signature matching.</p>
+        
+        <h3>Key Contributing Factors</h3>
+        <ul>
+            {% for factor in risk_analysis.factors %}
                 <li>{{ factor }}</li>
+            {% else %}
+                <li>No significant risk factors identified.</li>
+            {% endfor %}
+        </ul>
+        
+        <h3>Security Recommendations</h3>
+        <ul>
+            {% for rec in risk_analysis.recommendations %}
+                <li>✅ {{ rec }}</li>
+            {% else %}
+                <li>No specific recommendations.</li>
             {% endfor %}
         </ul>
     </div>
 
-    <!-- Manifest Summary -->
-    <div class="section">
-        <div class="section-title">1. Manifest Analysis & Permissions</div>
+    <!-- Manifest Analysis -->
+    <div class="card">
+        <h2>Android Manifest Analysis</h2>
+        <div class="grid">
+            <div class="stat-box"><div class="stat-label">Version Name</div><div class="stat-value">{{ manifest_analysis.metadata.version_name }}</div></div>
+            <div class="stat-box"><div class="stat-label">Min SDK</div><div class="stat-value">{{ manifest_analysis.metadata.min_sdk }}</div></div>
+            <div class="stat-box"><div class="stat-label">Target SDK</div><div class="stat-value">{{ manifest_analysis.metadata.target_sdk }}</div></div>
+        </div>
+        
+        <h3>Security Flags</h3>
+        <div class="code-block">
+            {% for k, v in manifest_analysis.security_flags.items() %}
+                {{ k }}: {{ v }}<br>
+            {% endfor %}
+        </div>
+        
+        <h3>Permissions Requested</h3>
         <table>
             <tr>
-                <th>Main Activity</th>
-                <td><span class="code-block">{{ manifest.main_activity or "N/A" }}</span></td>
-                <th>Min / Target SDK</th>
-                <td>{{ manifest.min_sdk_version or "N/A" }} / {{ manifest.target_sdk_version or "N/A" }}</td>
+                <th>Permission</th>
+                <th>Category</th>
+                <th>Severity</th>
+                <th>Risk Context</th>
             </tr>
+            {% for p in manifest_analysis.permissions %}
             <tr>
-                <th>Total Requested Permissions</th>
-                <td>{{ manifest.requested_permissions | length if manifest.requested_permissions else 0 }}</td>
-                <th>Dangerous Permissions</th>
-                <td>{{ manifest.declared_dangerous_permissions | length if manifest.declared_dangerous_permissions else 0 }}</td>
+                <td>{{ p.name.replace('android.permission.', '') }}</td>
+                <td>{{ p.category }}</td>
+                <td><span class="badge badge-{{ p.severity | lower }}">{{ p.severity }}</span></td>
+                <td style="font-size: 12px;">{{ p.reason }}<br><i>Rec: {{ p.recommendation }}</i></td>
             </tr>
+            {% endfor %}
         </table>
-
-        {% if manifest.declared_dangerous_permissions %}
-            <div style="margin-top: 8px; font-size: 12px;">
-                <strong>Declared Dangerous Permissions:</strong>
-                <div>
-                    {% for perm in manifest.declared_dangerous_permissions %}
-                        <span class="code-block" style="margin-right: 4px; margin-top: 4px; display: inline-block;">{{ perm }}</span>
-                    {% endfor %}
-                </div>
-            </div>
+        
+        <h3>Security Misconfigurations</h3>
+        {% if manifest_analysis.misconfigurations %}
+        <table>
+            <tr>
+                <th>Finding</th>
+                <th>Severity</th>
+                <th>Description</th>
+                <th>Recommendation</th>
+            </tr>
+            {% for m in manifest_analysis.misconfigurations %}
+            <tr>
+                <td>{{ m.title }}</td>
+                <td><span class="badge badge-{{ m.severity | lower }}">{{ m.severity }}</span></td>
+                <td style="font-size: 12px;">{{ m.description }}</td>
+                <td style="font-size: 12px;"><i>{{ m.recommendation }}</i></td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p>No Android security misconfigurations detected.</p>
         {% endif %}
     </div>
 
-    <!-- Code Analysis Findings -->
-    <div class="section">
-        <div class="section-title">2. Static Code Analysis (DEX Bytecode)</div>
+    <!-- Certificate Analysis -->
+    <div class="card">
+        <h2>Certificate Analysis</h2>
+        {% if certificate_analysis %}
         <table>
             <tr>
-                <th>Extracted URLs</th>
-                <td>{{ code_analysis.urls | length if code_analysis.urls else 0 }} found</td>
-                <th>Hardcoded IP Addresses</th>
-                <td>{{ code_analysis.ip_addresses | length if code_analysis.ip_addresses else 0 }} found</td>
-                <th>Suspicious API Calls</th>
-                <td>{{ code_analysis.suspicious_apis | length if code_analysis.suspicious_apis else 0 }} found</td>
+                <th>Issuer</th>
+                <th>Subject</th>
+                <th>SHA1</th>
+                <th>Self-Signed</th>
             </tr>
+            {% for cert in certificate_analysis %}
+            <tr>
+                <td>{{ cert.issuer }}</td>
+                <td>{{ cert.subject }}</td>
+                <td class="code-font" style="font-size: 12px;">{{ cert.sha1 }}</td>
+                <td>{% if cert.self_signed %}<span class="badge badge-high">Yes</span>{% else %}<span class="badge badge-normal">No</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
         </table>
+        {% else %}
+        <p>No certificates found or failed to parse.</p>
+        {% endif %}
+    </div>
 
+    <!-- Code Analysis -->
+    <div class="card">
+        <h2>DEX Code Analysis</h2>
+        
+        <h3>Suspicious APIs ({{ code_analysis.suspicious_apis | length }})</h3>
         {% if code_analysis.suspicious_apis %}
-            <div style="margin-top: 8px;">
-                <strong style="font-size: 12px;">Detected Sensitive API Calls:</strong>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Target API</th>
-                            <th>Class Context</th>
-                            <th>Invocation Method</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for api_item in code_analysis.suspicious_apis[:6] %}
-                            <tr>
-                                <td><span class="code-block">{{ api_item.api if api_item is mapping else api_item }}</span></td>
-                                <td>{{ api_item.class if api_item is mapping else "N/A" }}</td>
-                                <td>{{ api_item.method if api_item is mapping else "N/A" }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        {% endif %}
-    </div>
-
-    <!-- Signature Check -->
-    <div class="section">
-        <div class="section-title">3. Signature Checks & Malware Rules</div>
         <table>
+            <tr><th>Class Path</th><th>API Call</th><th>Severity</th></tr>
+            {% for api in code_analysis.suspicious_apis %}
             <tr>
-                <th>YARA Rule Matches</th>
-                <td>
-                    {% if signature_check.yara_matches %}
-                        <span class="badge high">{{ signature_check.yara_matches | length }} Match(es)</span>
-                    {% else %}
-                        <span class="badge clean">Clean (0 Matches)</span>
-                    {% endif %}
-                </td>
-                <th>VirusTotal Detections</th>
-                <td>
-                    {% if signature_check.virustotal and signature_check.virustotal.positives %}
-                        <span class="badge high">{{ signature_check.virustotal.positives }} / {{ signature_check.virustotal.total }} Engines</span>
-                    {% else %}
-                        <span class="badge unverified">No Detections / Key Missing</span>
-                    {% endif %}
-                </td>
+                <td style="font-size: 12px;">{{ api.class_name }}</td>
+                <td><span class="code-block" style="padding: 2px;">{{ api.api }}</span></td>
+                <td><span class="badge badge-{{ api.severity | lower }}">{{ api.severity }}</span></td>
             </tr>
+            {% endfor %}
         </table>
-
-        {% if signature_check.yara_matches %}
-            <div style="margin-top: 8px;">
-                <strong style="font-size: 12px;">Matched YARA Rules:</strong>
-                <ul class="list-group" style="margin-top: 4px;">
-                    {% for match in signature_check.yara_matches %}
-                        <li><strong class="code-block">{{ match.rule }}</strong> - {{ match.meta.description if match.meta and match.meta.description else "Malware signature match" }}</li>
-                    {% endfor %}
-                </ul>
-            </div>
+        {% else %}
+        <p>No suspicious APIs detected.</p>
         {% endif %}
-    </div>
-
-    <!-- Dynamic Behavior Summary -->
-    <div class="section">
-        <div class="section-title">4. Dynamic Sandbox Monitoring</div>
+        
+        <h3>Malware Indicators</h3>
+        {% if code_analysis.malware_indicators %}
         <table>
-            <thead>
-                <tr>
-                    <th>Observed Network Traffic Flows</th>
-                    <th>Intercepted File Operations</th>
-                    <th>Monitored Sensitive API Invocations</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>{{ dynamic_summary.network_entries_count }} request(s)</td>
-                    <td>{{ dynamic_summary.file_activity_count }} event(s)</td>
-                    <td>{{ dynamic_summary.api_calls_count }} call(s)</td>
-                </tr>
-            </tbody>
+            <tr><th>File Path</th><th>Indicator</th><th>Severity</th></tr>
+            {% for ind in code_analysis.malware_indicators %}
+            <tr>
+                <td style="font-size: 12px;">{{ ind.file_path }}</td>
+                <td>{{ ind.why_flagged }}</td>
+                <td><span class="badge badge-{{ ind.severity | lower }}">{{ ind.severity }}</span></td>
+            </tr>
+            {% endfor %}
         </table>
-    </div>
-
-    <!-- Command & Control (C2) Detection -->
-    <div class="section">
-        <div class="section-title">5. Command & Control (C2) Traffic Analysis</div>
-        {% if c2_detection and c2_detection.suspected_c2_hosts %}
-            <table>
-                <thead>
-                    <tr>
-                        <th>Host / Domain</th>
-                        <th>Confidence</th>
-                        <th>Flagged Detection Reasons</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for host_item in c2_detection.suspected_c2_hosts %}
-                        <tr>
-                            <td><span class="code-block">{{ host_item.host }}</span></td>
-                            <td><span class="badge {{ host_item.confidence }}">{{ host_item.confidence }}</span></td>
-                            <td>
-                                <ul style="margin: 0; padding-left: 15px;">
-                                    {% for reason in host_item.reasons %}
-                                        <li>{{ reason }}</li>
-                                    {% endfor %}
-                                </ul>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
         {% else %}
-            <p style="font-size: 12px; color: #64748b;">No suspicious Command & Control (C2) beaconing patterns detected.</p>
+        <p>No known static malware indicators detected in bytecode.</p>
+        {% endif %}
+        
+        <h3>Network Extracted Indicators</h3>
+        <div class="grid">
+            <div class="stat-box"><div class="stat-label">URLs</div><div class="stat-value">{{ code_analysis.network_indicators.urls | length }}</div></div>
+            <div class="stat-box"><div class="stat-label">IP Addresses</div><div class="stat-value">{{ code_analysis.network_indicators.ipv4 | length }}</div></div>
+        </div>
+        
+        <h3>Obfuscation & High Entropy Strings</h3>
+        {% if code_analysis.obfuscation_findings %}
+        <table>
+            <tr><th>Value</th><th>Entropy</th><th>Reason</th></tr>
+            {% for obf in code_analysis.obfuscation_findings %}
+            <tr>
+                <td><span class="code-block" style="padding: 2px;">{{ obf.value }}</span></td>
+                <td>{{ obf.entropy }}</td>
+                <td>{{ obf.reason }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p>No highly obfuscated strings or suspicious payloads detected.</p>
         {% endif %}
     </div>
 
-    <!-- Suspicious Servers -->
-    <div class="section">
-        <div class="section-title">6. External Server Reputation Verdicts</div>
-        {% if server_reputation and server_reputation.checked %}
-            <table>
-                <thead>
-                    <tr>
-                        <th>Target Host</th>
-                        <th>Type</th>
-                        <th>Reputation Verdict</th>
-                        <th>Lookup Details</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for s in server_reputation.checked %}
-                        <tr>
-                            <td><span class="code-block">{{ s.host }}</span></td>
-                            <td>{{ s.type | upper }}</td>
-                            <td><span class="badge {{ s.verdict }}">{{ s.verdict }}</span></td>
-                            <td style="font-size: 11px;">{{ s.reputation.reason if s.reputation and s.reputation.reason else "Enriched via threat intelligence" }}</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <!-- Resource Analysis -->
+    <div class="card">
+        <h2>Resource Analysis (Secrets & Keys)</h2>
+        {% if resource_analysis.secrets %}
+        <table>
+            <tr><th>File Path</th><th>Secret Type</th><th>Exposed Value</th></tr>
+            {% for sec in resource_analysis.secrets %}
+            <tr>
+                <td style="font-size: 12px;">{{ sec.file }}</td>
+                <td>{{ sec.type }}</td>
+                <td><span class="code-block" style="padding: 2px;">{{ sec.value }}</span></td>
+            </tr>
+            {% endfor %}
+        </table>
         {% else %}
-            <p style="font-size: 12px; color: #64748b;">No external server reputation checks required or available.</p>
+        <p>No exposed hardcoded secrets or API keys detected in assets/res.</p>
         {% endif %}
     </div>
 
-    <div class="footer">
-        Generated automatically by APK Threat Analysis Platform | Confidential Forensic Artifact
+    <!-- Native Library Analysis -->
+    <div class="card">
+        <h2>Native Library Analysis (.so)</h2>
+        <p><b>Architectures detected:</b> {{ native_library_analysis.architectures | join(', ') }}</p>
+        {% if native_library_analysis.suspicious_libraries %}
+        <table>
+            <tr><th>Library Name</th><th>Size</th><th>Suspicion Factor</th></tr>
+            {% for lib in native_library_analysis.suspicious_libraries %}
+            <tr>
+                <td>{{ lib.name }} ({{ lib.abi }})</td>
+                <td>{{ lib.size }} bytes</td>
+                <td style="color: var(--danger)">{{ lib.reasons | join(', ') }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p>No suspicious native libraries or packers detected.</p>
+        {% endif %}
     </div>
+
+    <!-- YARA Matches -->
+    <div class="card">
+        <h2>YARA Signature Scanner</h2>
+        {% if yara_matches %}
+        <table>
+            <tr><th>Rule Name</th><th>Severity</th><th>Matched File</th></tr>
+            {% for m in yara_matches %}
+            <tr>
+                <td>{{ m.rule_name }}</td>
+                <td><span class="badge badge-{{ m.severity | lower }}">{{ m.severity }}</span></td>
+                <td>{{ m.matched_file }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <div style="background: rgba(34,197,94,0.1); border-left: 4px solid var(--success); padding: 15px;">
+            <strong style="color: var(--success)">✓ Clean:</strong> No malicious YARA signatures matched across the entire codebase.
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Aggregated IOCs -->
+    <div class="card">
+        <h2>Aggregated Indicators of Compromise (IOCs)</h2>
+        <div class="grid">
+            <div class="stat-box"><div class="stat-label">Total URLs</div><div class="stat-value">{{ iocs.network.urls | length if iocs and iocs.network else 0 }}</div></div>
+            <div class="stat-box"><div class="stat-label">Total IPs</div><div class="stat-value">{{ iocs.network.ipv4 | length if iocs and iocs.network else 0 }}</div></div>
+            <div class="stat-box"><div class="stat-label">Exposed Secrets</div><div class="stat-value">{{ iocs.secrets | length if iocs else 0 }}</div></div>
+        </div>
+        <p style="margin-top: 20px;"><i>For a full breakdown of IOCs, please download the attached IOC JSON or CSV artifacts from the dashboard.</i></p>
+    </div>
+
+</div>
 
 </body>
 </html>
