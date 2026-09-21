@@ -18,8 +18,13 @@ dist/
 # Analysis artifacts
 *.apk
 uploads/
+backend/uploads/
+backend/results/
+!backend/results/.gitkeep
 reports/
 logs/
+
+
 
 # IDE and OS
 .vscode/
