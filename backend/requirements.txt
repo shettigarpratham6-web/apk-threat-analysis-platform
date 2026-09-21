@@ -5,5 +5,9 @@ androguard>=4.0.0
 requests>=2.31.0
 yara-python>=4.3.0
 plyara>=2.2.0
+frida>=16.0.0
+frida-tools>=12.0.0
+mitmproxy>=10.0.0
+
 
 
