@@ -2,7 +2,11 @@
 
 This directory contains configuration, Frida hooks, mitmproxy traffic interceptor scripts, and Android emulator management utilities for running untrusted APKs in an isolated environment.
 
+> ⚠️ **Host-Native Execution Requirement:**  
+> The Android Virtual Device (AVD emulator), Frida instrumentation server, and mitmproxy network tap run on the **host machine** (outside Docker) because Android hardware virtualization (KVM/HAXM) and ADB socket connections require host-level access. When running the platform via Docker Compose, launch the emulator on your host machine alongside the Dockerized backend and frontend containers.
+
 ---
+
 
 ## 📌 Prerequisites
 
