@@ -1,0 +1,27 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# JavaScript
+node_modules/
+dist/
+.vite/
+
+# Analysis artifacts
+*.apk
+uploads/
+reports/
+logs/
+
+# IDE and OS
+.vscode/
+.DS_Store
+Thumbs.db
