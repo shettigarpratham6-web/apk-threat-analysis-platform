@@ -26,7 +26,12 @@ logs/
 
 
 
+# Datasets and cache
+datasets/Android Malware Analysis CSV Dataset/
+.freebuff/
+
 # IDE and OS
 .vscode/
 .DS_Store
 Thumbs.db
+

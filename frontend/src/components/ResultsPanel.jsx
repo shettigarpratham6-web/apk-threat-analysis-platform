@@ -215,6 +215,41 @@ export default function ResultsPanel({ stageName, data, stageId }) {
              </div>
              <div style={{fontSize: "24px"}}>{data.risk_analysis?.level} Risk</div>
           </div>
+          {data.ml_classification && (
+            <div style={{marginTop: "15px", marginBottom: "20px", padding: "14px", borderRadius: "8px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)"}}>
+              <h4 style={{margin: "0 0 10px 0", display: "flex", alignItems: "center", gap: "8px"}}>
+                <span>🤖</span> Machine Learning Malware Classifier (Random Forest)
+              </h4>
+              <div className="metrics-grid" style={{marginBottom: "10px"}}>
+                <div className="metric-box">
+                  <span className="metric-label">Prediction</span>
+                  <span className="metric-value" style={{color: data.ml_classification.prediction === "malware" ? "#ef4444" : "#22c55e", textTransform: "capitalize"}}>
+                    {data.ml_classification.prediction}
+                  </span>
+                </div>
+                <div className="metric-box">
+                  <span className="metric-label">Malware Probability</span>
+                  <span className="metric-value">
+                    {((data.ml_classification.malware_probability || 0) * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="metric-box">
+                  <span className="metric-label">Features Matched</span>
+                  <span className="metric-value">
+                    {data.ml_classification.active_features_count ?? (data.ml_classification.active_features?.length || 0)}
+                  </span>
+                </div>
+              </div>
+              {data.ml_classification.active_features && data.ml_classification.active_features.length > 0 && (
+                <div style={{fontSize: "12px", color: "var(--text-secondary, #94a3b8)"}}>
+                  <strong style={{color: "var(--text-primary, #f1f5f9)"}}>Key Triggered Indicators:</strong>{" "}
+                  {data.ml_classification.active_features.slice(0, 8).join(", ")}
+                  {data.ml_classification.active_features.length > 8 ? "..." : ""}
+                </div>
+              )}
+            </div>
+          )}
+
           <h4>Risk Factors</h4>
           <ul>
              {(data.risk_analysis?.factors || []).map((f, i) => <li key={i}>{f}</li>)}

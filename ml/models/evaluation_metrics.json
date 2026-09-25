@@ -1,0 +1,97 @@
+{
+  "dataset_summary": {
+    "dataset_path": "datasets\\Android Malware Analysis CSV Dataset\\drebin_dataset.csv",
+    "raw_samples": 15036,
+    "raw_features": 215,
+    "raw_distribution": {
+      "B": 9476,
+      "S": 5560
+    },
+    "preprocessed_samples": 7254,
+    "preprocessed_features": 215,
+    "preprocessed_distribution": {
+      "benign_0": 5537,
+      "malware_1": 1717
+    },
+    "deduplicated": true,
+    "label_mapping": {
+      "B": 0,
+      "S": 1
+    }
+  },
+  "evaluation_metrics": {
+    "accuracy": 0.9731,
+    "precision": 0.9419,
+    "recall": 0.9446,
+    "f1_score": 0.9432,
+    "roc_auc": 0.9926,
+    "false_positive_rate": 0.0181,
+    "false_negative_rate": 0.0554,
+    "confusion_matrix": {
+      "true_negatives": 1088,
+      "false_positives": 20,
+      "false_negatives": 19,
+      "true_positives": 324
+    },
+    "train_samples": 5803,
+    "test_samples": 1451,
+    "hyperparameters": {
+      "n_estimators": 200,
+      "random_state": 42,
+      "class_weight": "balanced",
+      "n_jobs": -1
+    }
+  },
+  "top_10_features": [
+    {
+      "feature": "transact",
+      "importance": 0.04894774797503107,
+      "rank": 1
+    },
+    {
+      "feature": "attachInterface",
+      "importance": 0.04675942126467218,
+      "rank": 2
+    },
+    {
+      "feature": "android.os.Binder",
+      "importance": 0.0451449835478447,
+      "rank": 3
+    },
+    {
+      "feature": "READ_PHONE_STATE",
+      "importance": 0.04206296349219731,
+      "rank": 4
+    },
+    {
+      "feature": "Ljava.lang.Class.getCanonicalName",
+      "importance": 0.03910322094596252,
+      "rank": 5
+    },
+    {
+      "feature": "TelephonyManager.getDeviceId",
+      "importance": 0.0347136596782356,
+      "rank": 6
+    },
+    {
+      "feature": "onServiceConnected",
+      "importance": 0.033947234746336166,
+      "rank": 7
+    },
+    {
+      "feature": "ServiceConnection",
+      "importance": 0.03117225072665759,
+      "rank": 8
+    },
+    {
+      "feature": "bindService",
+      "importance": 0.02961519913400832,
+      "rank": 9
+    },
+    {
+      "feature": "SEND_SMS",
+      "importance": 0.0244642483202971,
+      "rank": 10
+    }
+  ]
+}

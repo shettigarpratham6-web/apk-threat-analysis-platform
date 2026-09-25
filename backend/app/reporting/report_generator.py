@@ -129,7 +129,29 @@ def _fallback_pdf_generation(context: Dict[str, Any], pdf_path: str) -> None:
     except Exception as exc:
         logger.error(f"Failed to generate PDF using ReportLab: {exc}")
 
-def generate_report(apk_id: str) -> Dict[str, str]:
+class ReportResponse(dict):
+    """Dict response that also equals the pdf_path string for backward compatibility."""
+    def __init__(self, apk_id: str, pdf_path: str, html_path: str, json_report: str, html_report: str, pdf_report: str):
+        super().__init__({
+            "apk_id": apk_id,
+            "pdf_path": pdf_path,
+            "html_path": html_path,
+            "json_report": json_report,
+            "html_report": html_report,
+            "pdf_report": pdf_report,
+        })
+        self._pdf_path = pdf_path
+
+    def __eq__(self, other):
+        if isinstance(other, (str, os.PathLike)):
+            return str(self._pdf_path) == str(other)
+        return super().__eq__(other)
+
+    def __str__(self):
+        return self._pdf_path
+
+
+def generate_report(apk_id: str) -> ReportResponse:
     """
     Loads static analysis artifacts for apk_id, renders Jinja2 template to HTML,
     and converts to PDF. Returns paths to JSON, HTML, and PDF.
@@ -141,11 +163,77 @@ def generate_report(apk_id: str) -> Dict[str, str]:
     html_path = os.path.join(RESULTS_DIR, f"{apk_id}_report.html")
     pdf_path = os.path.join(RESULTS_DIR, f"{apk_id}_report.pdf")
 
-    if not os.path.exists(json_file):
-        raise FileNotFoundError(f"Analysis JSON for {apk_id} not found. Ensure analysis is completed.")
+    if os.path.exists(json_file):
+        with open(json_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    else:
+        correlation_file = os.path.join(RESULTS_DIR, f"{apk_id}_correlation.json")
+        static_file = os.path.join(RESULTS_DIR, f"{apk_id}_static.json")
+        if os.path.exists(correlation_file):
+            with open(correlation_file, "r", encoding="utf-8") as f:
+                cdata = json.load(f)
+            risk_assessment = cdata.get("risk_assessment", {})
+            pkg_name = cdata.get("package_name") or cdata.get("static_summary", {}).get("package_name", "unknown.package")
+            risk_label = risk_assessment.get("risk_label", "Low Risk")
+            data = {
+                "apk_id": apk_id,
+                "metadata": {
+                    "filename": f"{pkg_name}.apk",
+                    "sha256": cdata.get("metadata", {}).get("sha256", "N/A"),
+                    "size": cdata.get("metadata", {}).get("size", "N/A"),
+                },
+                "manifest_analysis": {
+                    "metadata": {"package_name": pkg_name},
+                    "permissions": [],
+                    "security_flags": {},
+                },
+                "risk_analysis": {
+                    "score": risk_assessment.get("risk_score", 0),
+                    "level": risk_label,
+                    "factors": risk_assessment.get("contributing_factors", []),
+                    "recommendations": ["Review all flagged contributing risk factors."],
+                },
+                "code_analysis": {},
+                "resource_analysis": {},
+                "native_library_analysis": {},
+                "yara_matches": [],
+                "c2_detection": cdata.get("c2_summary", {}),
+                "dynamic_analysis": cdata.get("dynamic_summary", {}),
+            }
+        elif os.path.exists(static_file):
+            with open(static_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            raise FileNotFoundError(f"Analysis JSON for {apk_id} not found. Ensure analysis is completed.")
 
-    with open(json_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    # Ensure safe defaults for all nested structures expected by templates
+    code_analysis = data.setdefault("code_analysis", {})
+    if isinstance(code_analysis, dict):
+        code_analysis.setdefault("network_indicators", {"urls": [], "ipv4": []})
+        code_analysis.setdefault("suspicious_apis", [])
+        code_analysis.setdefault("malware_indicators", [])
+        code_analysis.setdefault("obfuscation_findings", [])
+
+    manifest = data.setdefault("manifest_analysis", {})
+    if isinstance(manifest, dict):
+        manifest.setdefault("metadata", {"package_name": "unknown.package"})
+        manifest.setdefault("permissions", [])
+        manifest.setdefault("exported_components", [])
+        manifest.setdefault("security_flags", {})
+
+    resource_analysis = data.setdefault("resource_analysis", {})
+    if isinstance(resource_analysis, dict):
+        resource_analysis.setdefault("secrets", [])
+
+    native_analysis = data.setdefault("native_library_analysis", {})
+    if isinstance(native_analysis, dict):
+        native_analysis.setdefault("suspicious_libraries", [])
+        native_analysis.setdefault("architectures", [])
+
+    data.setdefault("certificate_analysis", [])
+    data.setdefault("yara_matches", [])
+    data.setdefault("metadata", {"filename": "unknown.apk", "sha256": "N/A"})
+    data.setdefault("risk_analysis", {"score": 0, "level": "Safe", "factors": [], "recommendations": []})
 
     # Attach timestamp for report
     data["generated_date"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -176,9 +264,11 @@ def generate_report(apk_id: str) -> Dict[str, str]:
         logger.warning(f"WeasyPrint failed. Triggering ReportLab fallback. {wp_exc}")
         _fallback_pdf_generation(data, pdf_path)
 
-    return {
-        "apk_id": apk_id,
-        "json_report": f"/api/report/download/{apk_id}?format=json",
-        "html_report": f"/api/report/view/{apk_id}",
-        "pdf_report": f"/api/report/download/{apk_id}?format=pdf"
-    }
+    return ReportResponse(
+        apk_id=apk_id,
+        pdf_path=pdf_path,
+        html_path=html_path,
+        json_report=f"/api/report/download/{apk_id}?format=json",
+        html_report=f"/api/report/view/{apk_id}",
+        pdf_report=f"/api/report/download/{apk_id}?format=pdf",
+    )

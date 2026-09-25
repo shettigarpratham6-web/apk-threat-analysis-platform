@@ -1,11 +1,12 @@
 """Phase 9: Static Risk Correlation Engine"""
 from typing import Dict, Any, List
 
-def calculate_risk(manifest: Dict, code: Dict, resources: Dict, natives: Dict, yara: List, certs: List) -> Dict[str, Any]:
-    """Calculates risk score 0-100 based on all static analysis findings."""
+def calculate_risk(manifest: Dict, code: Dict, resources: Dict, natives: Dict, yara: List, certs: List = None, ml_result: Dict = None) -> Dict[str, Any]:
+    """Calculates risk score 0-100 based on all static analysis findings and ML classification."""
     score = 0
     factors = []
     recommendations = set()
+    certs = certs or []
     
     # 1. Manifest Analysis
     if manifest.get("permissions"):
@@ -93,6 +94,18 @@ def calculate_risk(manifest: Dict, code: Dict, resources: Dict, natives: Dict, y
         factors.append(f"Found {len(obfuscations)} highly obfuscated strings/payloads.")
         recommendations.add("Review high entropy strings to ensure they do not conceal malicious payloads.")
             
+    # 9. Random Forest ML Classifier Signal
+    if ml_result and isinstance(ml_result, dict):
+        ml_pred = ml_result.get("prediction")
+        mal_prob = ml_result.get("malware_probability", 0.0)
+        if ml_pred == "malware":
+            ml_points = min(20, int(mal_prob * 20))
+            score += ml_points
+            factors.append(f"Random Forest ML Classifier flagged sample as malware ({mal_prob * 100:.1f}% confidence)")
+            recommendations.add("Static ML model indicates high malicious probability. Review identified permissions and APIs.")
+        elif ml_pred == "benign":
+            factors.append(f"Random Forest ML Classifier evaluated sample as benign ({ml_result.get('benign_probability', 0.0) * 100:.1f}% confidence)")
+
     # Cap score
     score = min(score, 100)
     

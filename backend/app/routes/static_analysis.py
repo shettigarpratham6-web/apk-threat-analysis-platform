@@ -13,7 +13,9 @@ from backend.app.static_analysis.resource_analysis import analyze_resources
 from backend.app.static_analysis.native_library_analysis import analyze_native_libs
 from backend.app.static_analysis.signature_check import run_yara_scan
 from backend.app.static_analysis.cert_scanner import scan_certificates
+from loguru import logger
 from backend.app.static_analysis.aggregator import calculate_risk, generate_iocs
+from backend.core.static_analysis.ml_classifier import get_static_malware_classifier
 
 # Try to import Androguard for manifest parsing
 try:
@@ -22,6 +24,7 @@ except ImportError:
     APK = None
 
 router = APIRouter()
+ml_classifier = get_static_malware_classifier()
 
 UPLOADS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "uploads"))
 RESULTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "results"))
@@ -109,9 +112,13 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
         
         # 2. Extract APK
         extraction_data = extract_apk_securely(file_path, extract_dir)
-        extraction_tree = extraction_data.get("tree", [])
+        extraction_tree = extraction_data.get("tree", []) if isinstance(extraction_data, dict) else []
         
-        apk_obj = APK(file_path) if APK else None
+        try:
+            apk_obj = APK(file_path) if APK else None
+        except Exception as e:
+            logger.warning(f"Failed to load APK with Androguard: {e}")
+            apk_obj = None
         
         # robust wrapper
         def safe_run(func, *args, default_ret={}):
@@ -143,17 +150,31 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
         if isinstance(yara_results, dict) and "error" in yara_results:
             yara_results = []
             
-        # 9. Risk Correlation Engine
+        # 9. Static Feature Vector Extraction & Random Forest ML Classification
+        ml_clf = get_static_malware_classifier()
+        feature_vector = ml_clf.extract_feature_vector_from_static_analysis(
+            manifest_results=manifest_results,
+            code_results=code_results,
+            native_results=native_results
+        )
+        ml_results = safe_run(
+            ml_clf.predict,
+            feature_vector,
+            default_ret={"prediction": "unknown", "malware_probability": 0.0, "benign_probability": 0.0}
+        )
+
+        # 10. Risk Correlation Engine
         risk_results = calculate_risk(
             manifest_results, 
             code_results, 
             resource_results, 
             native_results, 
             yara_results,
-            cert_results
+            cert_results,
+            ml_results
         )
         
-        # 10. IOC Generator
+        # 11. IOC Generator
         ioc_results = generate_iocs(metadata, code_results, resource_results, cert_results)
         
         # Save independent JSONs
@@ -174,11 +195,15 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
             "resource_analysis": resource_results,
             "native_library_analysis": native_results,
             "yara_matches": yara_results,
+            "ml_classification": ml_results,
+            "static_feature_vector": feature_vector,
             "risk_analysis": risk_results,
             "iocs": ioc_results
         }
         
         with open(os.path.join(RESULTS_DIR, f"{apk_id}_report.json"), "w") as f:
+            json.dump(final_results, f, indent=4)
+        with open(os.path.join(RESULTS_DIR, f"{apk_id}_static.json"), "w") as f:
             json.dump(final_results, f, indent=4)
             
         return final_results

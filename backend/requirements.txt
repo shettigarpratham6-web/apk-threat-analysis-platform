@@ -21,3 +21,9 @@ pillow
 beautifulsoup4
 networkx
 pyOpenSSL
+pandas
+numpy
+scikit-learn
+joblib
+matplotlib
+seaborn

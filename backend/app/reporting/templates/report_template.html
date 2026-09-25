@@ -157,7 +157,7 @@
     <div class="risk-banner {{ risk_analysis.level | lower }}">
         <div>
             <h2 style="margin:0; border:none; padding:0;">THREAT LEVEL: {{ risk_analysis.level | upper }}</h2>
-            <p style="margin:5px 0 0 0;">Automated Static Correlation Engine</p>
+            <p style="margin:5px 0 0 0;">Automated Correlation Engine &bull; {{ risk_analysis.level }}</p>
         </div>
         <div class="score-circle">
             {{ risk_analysis.score }} / 100
@@ -328,8 +328,8 @@
         
         <h3>Network Extracted Indicators</h3>
         <div class="grid">
-            <div class="stat-box"><div class="stat-label">URLs</div><div class="stat-value">{{ code_analysis.network_indicators.urls | length }}</div></div>
-            <div class="stat-box"><div class="stat-label">IP Addresses</div><div class="stat-value">{{ code_analysis.network_indicators.ipv4 | length }}</div></div>
+            <div class="stat-box"><div class="stat-label">URLs</div><div class="stat-value">{{ (code_analysis.network_indicators.urls | length) if (code_analysis and code_analysis.network_indicators) else 0 }}</div></div>
+            <div class="stat-box"><div class="stat-label">IP Addresses</div><div class="stat-value">{{ (code_analysis.network_indicators.ipv4 | length) if (code_analysis and code_analysis.network_indicators) else 0 }}</div></div>
         </div>
         
         <h3>Obfuscation & High Entropy Strings</h3>

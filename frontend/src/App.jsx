@@ -79,7 +79,12 @@ export default function App() {
         5: { resource_analysis: data.resource_analysis },
         6: { native_library_analysis: data.native_library_analysis },
         7: { yara_matches: data.yara_matches },
-        8: { risk_analysis: data.risk_analysis },
+        8: {
+          risk_analysis: data.risk_analysis,
+          certificate_analysis: data.certificate_analysis,
+          iocs: data.iocs,
+          ml_classification: data.ml_classification
+        },
         9: { report: true, apkId: data.apk_id }
       };
 

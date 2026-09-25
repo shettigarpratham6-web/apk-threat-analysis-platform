@@ -15,18 +15,29 @@ logger = logging.getLogger("reporting_routes")
 RESULTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "results"))
 
 
+@router.post("/generate")
 @router.post("/generate/{apk_id}")
-async def generate_forensic_report(apk_id: str):
+async def generate_forensic_report(
+    apk_id: Optional[str] = None,
+    apk_id_form: Optional[str] = Form(None, alias="apk_id"),
+):
     """
     Generates PDF, HTML, and JSON forensic report artifacts for the given apk_id.
     """
+    target_apk_id = apk_id or apk_id_form
+    if not target_apk_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Field 'apk_id' is required.",
+        )
+
     try:
-        urls = generate_report(apk_id)
+        urls = generate_report(target_apk_id)
         return urls
     except FileNotFoundError as fnf:
         raise HTTPException(status_code=404, detail=str(fnf))
     except Exception as err:
-        logger.error(f"Error generating forensic report for apk_id '{apk_id}': {err}")
+        logger.error(f"Error generating forensic report for apk_id '{target_apk_id}': {err}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while generating forensic report: {str(err)}",
@@ -34,6 +45,7 @@ async def generate_forensic_report(apk_id: str):
 
 
 @router.get("/download/{apk_id}")
+@router.get("/{apk_id}/download")
 async def download_report(apk_id: str, format: str = Query("pdf")):
     """
     Downloads the compiled PDF or JSON forensic report file.
@@ -76,6 +88,7 @@ async def download_report(apk_id: str, format: str = Query("pdf")):
 
 
 @router.get("/view/{apk_id}")
+@router.get("/{apk_id}/view")
 async def view_html_report(apk_id: str):
     """
     Renders raw HTML forensic report directly in the browser.
