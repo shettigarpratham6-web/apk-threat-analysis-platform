@@ -1,0 +1,44 @@
+{
+  "environment": {
+    "android_sdk_path": "C:\\Users\\UJWAL\\AppData\\Local\\Android\\Sdk",
+    "emulator_name": "malware_sandbox",
+    "fallback_emulator_name": "Malware-Lab",
+    "openssl_binary": "C:\\Program Files\\Git\\usr\\bin\\openssl.exe",
+    "skip_jdk_version_check": true
+  },
+  "emulator": {
+    "avd_name": "malware_sandbox",
+    "system_image": "system-images;android-29;google_apis;x86_64",
+    "device": "pixel_3a",
+    "start_args": ["-writable-system", "-no-snapshot", "-no-audio", "-no-boot-anim"],
+    "boot_timeout_seconds": 180
+  },
+  "proxy": {
+    "host": "127.0.0.1",
+    "port": 8080,
+    "ca_cert_path": "~/.mitmproxy/mitmproxy-ca-cert.pem",
+    "cacerts_system_path": "/system/etc/security/cacerts/"
+  },
+  "frida": {
+    "server_device_path": "/data/local/tmp/frida-server",
+    "port": 27042,
+    "timeout_seconds": 30
+  },
+  "scoring": {
+    "thresholds": {
+      "low": [0, 30],
+      "medium": [31, 60],
+      "high": [61, 100]
+    }
+  },
+  "paths": {
+    "traffic_logs": "logs/traffic",
+    "frida_logs": "logs/frida",
+    "logcat_logs": "logs/logcat",
+    "analysis_logs": "logs/analysis",
+    "reports_dir": "reports",
+    "datasets_benign": "datasets/benign",
+    "datasets_malicious": "datasets/malicious",
+    "tools_dir": "tools"
+  }
+}

@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Android Malware Analysis & C2 Detection Sandbox</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-base: #0a0f1d;
+            --bg-card: #111827;
+            --bg-card-hover: #1f293d;
+            --border: #1f2937;
+            --border-highlight: #3b82f6;
+            --text-main: #f9fafb;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --accent-cyan: #06b6d4;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            padding: 30px 40px;
+            min-height: 100vh;
+        }
+
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 25px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 30px;
+        }
+        .navbar h1 {
+            font-size: 22px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #fff;
+        }
+        .navbar h1 i { color: var(--accent-cyan); }
+        .nav-meta {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .status-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status-card .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; }
+        .status-card .val { font-size: 16px; font-weight: 700; margin-top: 4px; }
+        .status-pill {
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .pill-online { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+        .pill-active { background: rgba(6, 182, 212, 0.15); color: #38bdf8; border: 1px solid rgba(6, 182, 212, 0.4); }
+
+        .layout-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            margin-bottom: 35px;
+        }
+        @media (max-width: 900px) {
+            .layout-grid { grid-template-columns: 1fr; }
+        }
+
+        .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 24px;
+        }
+        .panel h2 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #93c5fd;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .upload-zone {
+            border: 2px dashed #374151;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: rgba(17, 24, 39, 0.5);
+            margin-bottom: 20px;
+        }
+        .upload-zone:hover {
+            border-color: var(--primary);
+            background: rgba(59, 130, 246, 0.05);
+        }
+        .upload-zone i { font-size: 32px; color: var(--primary); margin-bottom: 10px; }
+        .upload-zone p { font-size: 13px; color: var(--text-muted); }
+
+        .btn {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 18px;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+        .btn:hover { background: #2563eb; }
+        .btn-secondary {
+            background: #1f2937;
+            color: #e5e7eb;
+            border: 1px solid #374151;
+        }
+        .btn-secondary:hover { background: #374151; }
+        .btn-success { background: #059669; }
+        .btn-success:hover { background: #047857; }
+        .btn-danger { background: #dc2626; }
+        .btn-danger:hover { background: #b91c1c; }
+
+        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+
+        .table-wrap { overflow-x: auto; margin-top: 15px; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+        th { background: #1f2937; padding: 12px; color: var(--text-muted); border-bottom: 1px solid var(--border); font-weight: 600; }
+        td { padding: 12px; border-bottom: 1px solid var(--border); }
+        tr:hover { background: rgba(31, 41, 55, 0.4); }
+
+        .badge-risk {
+            display: inline-block;
+            padding: 3px 8px;
+            font-size: 11px;
+            font-weight: 700;
+            border-radius: 4px;
+        }
+        .risk-low { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid #10b981; }
+        .risk-medium { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid #f59e0b; }
+        .risk-high { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid #ef4444; }
+
+        #progressBox {
+            display: none;
+            background: rgba(31, 41, 55, 0.6);
+            border: 1px solid #374151;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #38bdf8;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <h1><i class="fa-solid fa-shield-halved"></i> Android Malware Analysis & C2 Detection Sandbox</h1>
+        <div class="nav-meta">
+            <span><i class="fa-solid fa-server"></i> Localhost Lab</span>
+            <span><i class="fa-solid fa-code"></i> Defensive Security Laboratory</span>
+        </div>
+    </div>
+
+    <!-- Status Subsystem Cards -->
+    <div class="status-grid">
+        <div class="status-card">
+            <div>
+                <div class="label">Emulator Device</div>
+                <div class="val">{{ status.emulator }}</div>
+            </div>
+            <span class="status-pill pill-online"><i class="fa-solid fa-circle"></i> Online</span>
+        </div>
+        <div class="status-card">
+            <div>
+                <div class="label">ADB Root Access</div>
+                <div class="val">uid=0 (root)</div>
+            </div>
+            <span class="status-pill pill-online"><i class="fa-solid fa-check"></i> Enabled</span>
+        </div>
+        <div class="status-card">
+            <div>
+                <div class="label">Dynamic Proxy</div>
+                <div class="val">mitmproxy:8080</div>
+            </div>
+            <span class="status-pill pill-active"><i class="fa-solid fa-network-wired"></i> Intercepting</span>
+        </div>
+        <div class="status-card">
+            <div>
+                <div class="label">Frida Instrumentation</div>
+                <div class="val">v{{ status.frida_version }}</div>
+            </div>
+            <span class="status-pill pill-online"><i class="fa-solid fa-bolt"></i> Ready</span>
+        </div>
+    </div>
+
+    <div class="layout-grid">
+        <!-- Panel 1: Upload & Launch Analysis -->
+        <div class="panel">
+            <h2><i class="fa-solid fa-play"></i> Initiate Sandbox Analysis</h2>
+            <form id="uploadForm" enctype="multipart/form-data">
+                <div class="upload-zone" onclick="document.getElementById('apkFile').click()">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <p style="font-weight: 600; color: #fff;">Click to select an APK file to upload</p>
+                    <p>Or drag and drop the Android application package here</p>
+                    <input type="file" id="apkFile" name="apk" accept=".apk" style="display: none;" onchange="updateFileName()">
+                    <p id="selectedFileText" style="margin-top: 10px; color: #38bdf8; font-weight: 600;"></p>
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <label style="font-size: 13px; color: var(--text-muted); display: block; margin-bottom: 5px;">Observation Duration (seconds):</label>
+                    <input type="number" id="duration" name="duration" value="15" min="5" max="60" style="background: #1f2937; border: 1px solid #374151; color: #fff; padding: 8px 12px; border-radius: 6px; width: 100px;">
+                </div>
+
+                <button type="submit" class="btn btn-success" id="btnSubmit">
+                    <i class="fa-solid fa-flask"></i> Upload & Start Sandbox Analysis
+                </button>
+            </form>
+
+            <div style="margin-top: 25px; padding-top: 15px; border-top: 1px solid var(--border);">
+                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">Quick Lab Test Benchmarks:</p>
+                <div class="btn-group">
+                    <button class="btn btn-secondary" onclick="runPreset('benign')">
+                        <i class="fa-solid fa-check-double"></i> Test Benign APK
+                    </button>
+                    <button class="btn btn-secondary" onclick="runPreset('malicious')">
+                        <i class="fa-solid fa-bug"></i> Test C2 Simulator APK
+                    </button>
+                </div>
+            </div>
+
+            <div id="progressBox">
+                <i class="fa-solid fa-spinner fa-spin"></i> <span id="progressText">Executing multi-stage analysis pipeline...</span>
+            </div>
+        </div>
+
+        <!-- Panel 2: Live Sandbox Overview -->
+        <div class="panel">
+            <h2><i class="fa-solid fa-chart-line"></i> Sandbox Telemetry & Architecture</h2>
+            <div style="font-size: 13px; line-height: 1.8; color: var(--text-muted);">
+                <p><strong style="color: #fff;">1. Static Inspection:</strong> Manifest auditing via Androguard 4.1.4 for permissions, services, and attack surface.</p>
+                <p><strong style="color: #fff;">2. Traffic Interception:</strong> Local proxy (port 8080) with Android system root CA (<code style="color: #38bdf8;">c8750f0d.0</code>) installed in <code style="color: #38bdf8;">/system/etc/security/cacerts/</code>.</p>
+                <p><strong style="color: #fff;">3. Instrumentation:</strong> Real-time method hooks for URL connections, Socket creations, SMS transmission attempts, and subprocess spawns.</p>
+                <p><strong style="color: #fff;">4. C2 Detection Engine:</strong> Heuristic analysis computing connection variance, beaconing intervals, and suspicious query strings.</p>
+            </div>
+            
+            <div style="margin-top: 20px; padding: 15px; background: rgba(31, 41, 55, 0.4); border-radius: 6px; border: 1px solid var(--border);">
+                <span style="font-size: 12px; font-weight: 700; color: #fff;">Reports Directory:</span>
+                <p style="font-family: monospace; font-size: 11px; color: #38bdf8; margin-top: 4px;">{{ reports_dir }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Forensic Reports Table -->
+    <div class="panel">
+        <h2><i class="fa-solid fa-file-invoice"></i> Forensic Analysis Reports History</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Session ID / Target</th>
+                        <th>Risk Score</th>
+                        <th>Verdict</th>
+                        <th>Generated Time</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rep in reports %}
+                    <tr>
+                        <td style="font-weight: 600;">
+                            <i class="fa-solid fa-cube" style="color: #38bdf8; margin-right: 8px;"></i>
+                            {{ rep.session_id }}
+                        </td>
+                        <td>
+                            <span class="badge-risk {% if rep.overall_risk_score >= 61 %}risk-high{% elif rep.overall_risk_score >= 31 %}risk-medium{% else %}risk-low{% endif %}">
+                                {{ rep.overall_risk_score }} / 100
+                            </span>
+                        </td>
+                        <td>{{ rep.overall_verdict }}</td>
+                        <td style="color: var(--text-muted); font-size: 12px;">{{ rep.generated_at }}</td>
+                        <td>
+                            <a href="/reports/{{ rep.html_file }}" target="_blank" class="btn btn-secondary" style="padding: 5px 10px; font-size: 11px;">
+                                <i class="fa-solid fa-arrow-up-right-from-square"></i> View Report
+                            </a>
+                            <a href="/reports/json/{{ rep.json_file }}" target="_blank" class="btn btn-secondary" style="padding: 5px 10px; font-size: 11px;">
+                                <i class="fa-solid fa-code"></i> JSON
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 25px;">
+                            No forensic reports generated yet. Run an analysis above to generate records.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function updateFileName() {
+            var file = document.getElementById('apkFile').files[0];
+            if (file) {
+                document.getElementById('selectedFileText').innerText = "Selected: " + file.name;
+            }
+        }
+
+        document.getElementById('uploadForm').onsubmit = function(e) {
+            e.preventDefault();
+            var file = document.getElementById('apkFile').files[0];
+            if (!file) {
+                alert("Please select an APK file first.");
+                return;
+            }
+            var formData = new FormData();
+            formData.append('apk', file);
+            formData.append('duration', document.getElementById('duration').value);
+
+            showProgress("Uploading APK and launching analysis pipeline...");
+            fetch('/api/analyze', { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(data => {
+                    hideProgress();
+                    if (data.status === 'success') {
+                        alert("Analysis complete! Verdict: " + data.verdict);
+                        window.location.reload();
+                    } else {
+                        alert("Analysis failed: " + data.message);
+                    }
+                })
+                .catch(err => {
+                    hideProgress();
+                    alert("Error communicating with sandbox server: " + err);
+                });
+        };
+
+        function runPreset(type) {
+            showProgress("Running automated benchmark analysis for: " + type + " APK...");
+            fetch('/api/analyze_preset?type=' + type, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    hideProgress();
+                    if (data.status === 'success') {
+                        alert("Analysis complete for " + type + " sample! Verdict: " + data.verdict);
+                        window.location.reload();
+                    } else {
+                        alert("Analysis error: " + data.message);
+                    }
+                })
+                .catch(err => {
+                    hideProgress();
+                    alert("Error: " + err);
+                });
+        }
+
+        function showProgress(msg) {
+            document.getElementById('progressBox').style.display = 'block';
+            document.getElementById('progressText').innerText = msg;
+            document.getElementById('btnSubmit').disabled = true;
+        }
+
+        function hideProgress() {
+            document.getElementById('progressBox').style.display = 'none';
+            document.getElementById('btnSubmit').disabled = false;
+        }
+    </script>
+</body>
+</html>

@@ -17,12 +17,15 @@ dist/
 
 # Analysis artifacts
 *.apk
+!datasets/**/*.apk
 uploads/
 backend/uploads/
 backend/results/
 !backend/results/.gitkeep
 reports/
 logs/
+tools/frida-server
+tools/*.xz
 
 
 
