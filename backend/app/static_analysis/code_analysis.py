@@ -60,6 +60,7 @@ def analyze_code(apk_path: str) -> Dict[str, Any]:
     
     jadx_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "tools", "jadx", "bin", "jadx.bat" if os.name == "nt" else "jadx"))
     apktool_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "tools", "apktool", "apktool.bat" if os.name == "nt" else "apktool"))
+    apktool_jar = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "tools", "apktool.jar"))
     
     if not os.path.exists(jadx_path):
         logger.error(f"Jadx not found at {jadx_path}")
@@ -70,6 +71,14 @@ def analyze_code(apk_path: str) -> Dict[str, Any]:
     extracted_strings = set()
     file_ext = ".java"
     
+    results["codebert_similarity"] = {
+        "status": "active",
+        "matches": [],
+        "suspicious_matches_found": 0,
+        "max_confidence_score": 0.0,
+    }
+    codebert_candidates = []
+
     try:
         # Try JADX first
         try:
@@ -82,8 +91,13 @@ def analyze_code(apk_path: str) -> Dict[str, Any]:
             if os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir, ignore_errors=True)
             
-            # Run Apktool fallback
-            cmd = [apktool_path, "d", "-s", "-f", "-o", temp_dir, apk_path]
+            # Run Apktool fallback (supports apktool binary or java -jar apktool.jar)
+            if os.path.exists(apktool_path):
+                cmd = [apktool_path, "d", "-s", "-f", "-o", temp_dir, apk_path]
+            elif os.path.exists(apktool_jar):
+                cmd = ["java", "-jar", apktool_jar, "d", "-s", "-f", "-o", temp_dir, apk_path]
+            else:
+                cmd = ["apktool", "d", "-s", "-f", "-o", temp_dir, apk_path]
             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
             
         # Scan files (Java or Smali)
@@ -100,7 +114,7 @@ def analyze_code(apk_path: str) -> Dict[str, Any]:
                     with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
                         lines = f.readlines()
                         
-                    for line in lines:
+                    for idx, line in enumerate(lines):
                         line_stripped = line.strip()
                         if not line_stripped or line_stripped.startswith(("#", "//", ".")):
                             continue
@@ -128,6 +142,16 @@ def analyze_code(apk_path: str) -> Dict[str, Any]:
                                     "severity": severity,
                                     "api": api
                                 })
+                                # Capture surrounding context for CodeBERT
+                                ctx_start = max(0, idx - 4)
+                                ctx_end = min(len(lines), idx + 8)
+                                codebert_candidates.append({
+                                    "code": "".join(lines[ctx_start:ctx_end]),
+                                    "class_name": class_name,
+                                    "file_path": rel_path,
+                                    "line_number": idx + 1,
+                                    "api": api,
+                                })
                                 
                         # Malware Indicators
                         for ind, meta in MALWARE_INDICATORS.items():
@@ -141,8 +165,42 @@ def analyze_code(apk_path: str) -> Dict[str, Any]:
                                     "severity": meta["severity"],
                                     "why_flagged": meta["reason"]
                                 })
+                                ctx_start = max(0, idx - 4)
+                                ctx_end = min(len(lines), idx + 8)
+                                codebert_candidates.append({
+                                    "code": "".join(lines[ctx_start:ctx_end]),
+                                    "class_name": class_name,
+                                    "file_path": rel_path,
+                                    "line_number": idx + 1,
+                                    "why_flagged": meta["reason"],
+                                })
+
+                    # If no suspicious API triggered, sample file if small
+                    if len(codebert_candidates) < 5 and len(lines) > 5 and len(lines) < 80:
+                        codebert_candidates.append({
+                            "code": "".join(lines[:40]),
+                            "class_name": class_name,
+                            "file_path": rel_path,
+                            "line_number": 1,
+                        })
+
                 except Exception as e:
                     logger.warning(f"Failed to read {filepath}: {e}")
+
+        # Run CodeBERT Semantic Similarity Analysis
+        try:
+            from backend.app.static_analysis.codebert_analyzer import get_codebert_analyzer
+            cb_analyzer = get_codebert_analyzer()
+            results["codebert_similarity"] = cb_analyzer.analyze_snippets_batch(codebert_candidates)
+        except Exception as cb_err:
+            logger.warning(f"CodeBERT analysis failed: {cb_err}")
+            results["codebert_similarity"] = {
+                "status": "fallback",
+                "fallback_reason": str(cb_err),
+                "matches": [],
+                "suspicious_matches_found": 0,
+                "disclaimer": "Semantic similarity analysis fallback active.",
+            }
                     
     except Exception as e:
         logger.error(f"Error in code analysis: {e}")

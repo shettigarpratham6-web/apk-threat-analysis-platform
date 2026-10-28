@@ -102,6 +102,10 @@ def _fallback_pdf_generation(context: Dict[str, Any], pdf_path: str) -> None:
         mani_perms = context.get("manifest_analysis", {}).get("permissions", [])
         code_urls = context.get("code_analysis", {}).get("network_indicators", {}).get("urls", [])
         code_apis = context.get("code_analysis", {}).get("suspicious_apis", [])
+        codebert_matches = (
+            context.get("codebert_similarity", {}).get("matches", [])
+            or context.get("code_analysis", {}).get("codebert_similarity", {}).get("matches", [])
+        )
         resources_secrets = context.get("resource_analysis", {}).get("secrets", [])
         native_libs = context.get("native_library_analysis", {}).get("libraries", [])
         yara_matches = context.get("yara_matches", [])
@@ -110,6 +114,7 @@ def _fallback_pdf_generation(context: Dict[str, Any], pdf_path: str) -> None:
             ["Analysis Stage", "Metrics Identified"],
             ["Manifest Analysis", f"{len(mani_perms)} permissions requested"],
             ["DEX Code Analysis", f"{len(code_urls)} URLs, {len(code_apis)} suspicious APIs"],
+            ["CodeBERT Semantic Scan", f"{len(codebert_matches)} behavioral similarities matched"],
             ["Resource Analysis", f"{len(resources_secrets)} exposed secrets/keys"],
             ["Native Library Analysis", f"{len(native_libs)} native libraries (.so)"],
             ["YARA Signature Check", f"{len(yara_matches)} malware signatures matched"],
@@ -123,6 +128,33 @@ def _fallback_pdf_generation(context: Dict[str, Any], pdf_path: str) -> None:
             ('PADDING', (0, 0), (-1, -1), 6),
         ]))
         story.append(sum_table)
+
+        # CodeBERT Semantic Findings Section
+        if codebert_matches:
+            story.append(Spacer(1, 14))
+            story.append(Paragraph("CodeBERT Suspicious Code Semantic Similarity (microsoft/codebert-base)", h2_style))
+            story.append(Spacer(1, 4))
+            story.append(Paragraph("<i>Note: Pretrained CodeBERT semantic similarity identifies structural/functional alignment "
+                                   "with reference suspicious patterns and does not claim autonomous malware classification.</i>", body_style))
+            story.append(Spacer(1, 6))
+
+            cb_table_data = [["Matched Pattern", "Category", "Confidence", "Evidence Class"]]
+            for cm in codebert_matches[:8]:
+                cb_table_data.append([
+                    cm.get("pattern_name", "Unknown"),
+                    cm.get("category", "Unknown"),
+                    cm.get("similarity_percentage", f"{cm.get('confidence_score', 0)*100:.1f}%"),
+                    cm.get("evidence", {}).get("class_name", "Unknown")[:25],
+                ])
+            cb_table = Table(cb_table_data, colWidths=[180, 150, 80, 130])
+            cb_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#1e293b")),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+                ('PADDING', (0, 0), (-1, -1), 5),
+            ]))
+            story.append(cb_table)
 
         doc.build(story)
         logger.info(f"Generated PDF report at: {pdf_path}")
@@ -232,6 +264,10 @@ def generate_report(apk_id: str) -> ReportResponse:
 
     data.setdefault("certificate_analysis", [])
     data.setdefault("yara_matches", [])
+    data.setdefault(
+        "codebert_similarity",
+        data.get("code_analysis", {}).get("codebert_similarity", {"matches": [], "status": "active", "suspicious_matches_found": 0})
+    )
     data.setdefault("metadata", {"filename": "unknown.apk", "sha256": "N/A"})
     data.setdefault("risk_analysis", {"score": 0, "level": "Safe", "factors": [], "recommendations": []})
 

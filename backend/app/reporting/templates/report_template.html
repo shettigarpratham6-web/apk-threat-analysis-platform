@@ -326,6 +326,38 @@
         <p>No known static malware indicators detected in bytecode.</p>
         {% endif %}
         
+        <h3>CodeBERT Pretrained Code Semantic Similarity (microsoft/codebert-base)</h3>
+        <p style="font-size: 12px; color: var(--text-muted); background: rgba(59, 130, 246, 0.1); border-left: 3px solid var(--primary); padding: 8px 12px; border-radius: 4px;">
+            ℹ️ <b>Analysis Note:</b> Pretrained CodeBERT evaluates extracted Java/Kotlin/Smali code for structural and functional similarity to known suspicious behavior templates. This indicates behavioral alignment, not an automated malware classification verdict.
+        </p>
+        {% set cb_matches = (codebert_similarity.matches if codebert_similarity and codebert_similarity.matches) or (code_analysis.codebert_similarity.matches if code_analysis and code_analysis.codebert_similarity and code_analysis.codebert_similarity.matches) %}
+        {% if cb_matches %}
+        <table>
+            <tr>
+                <th>Matched Behavior Pattern</th>
+                <th>Category</th>
+                <th>Confidence</th>
+                <th>Severity</th>
+                <th>Evidence Reference</th>
+            </tr>
+            {% for m in cb_matches %}
+            <tr>
+                <td><b>{{ m.pattern_name }}</b><br><small style="color: var(--text-muted);">{{ m.description }}</small></td>
+                <td>{{ m.category }}</td>
+                <td><span class="badge badge-primary">{{ m.similarity_percentage }}</span></td>
+                <td><span class="badge badge-{{ m.severity | lower }}">{{ m.severity }}</span></td>
+                <td style="font-size: 11px;">
+                    <b>Class:</b> {{ m.evidence.class_name }}<br>
+                    <b>File:</b> {{ m.evidence.file_path }}<br>
+                    <code style="display:block; max-height: 48px; overflow:hidden; background: rgba(0,0,0,0.3); padding: 3px; border-radius: 3px;">{{ m.evidence.snippet }}</code>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p style="color: var(--text-muted); font-size: 13px;">No suspicious code similarity matches above confidence threshold.</p>
+        {% endif %}
+        
         <h3>Network Extracted Indicators</h3>
         <div class="grid">
             <div class="stat-box"><div class="stat-label">URLs</div><div class="stat-value">{{ (code_analysis.network_indicators.urls | length) if (code_analysis and code_analysis.network_indicators) else 0 }}</div></div>

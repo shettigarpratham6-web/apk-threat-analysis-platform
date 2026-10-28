@@ -4,7 +4,7 @@ import json
 import os
 import shutil
 import uuid
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
 
 from backend.app.static_analysis.apk_extractor import extract_apk_securely, hash_file
 from backend.app.static_analysis.manifest_check import analyze_manifest
@@ -192,6 +192,7 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
             "manifest_analysis": manifest_results,
             "certificate_analysis": cert_results,
             "code_analysis": code_results,
+            "codebert_similarity": code_results.get("codebert_similarity", {}),
             "resource_analysis": resource_results,
             "native_library_analysis": native_results,
             "yara_matches": yara_results,
@@ -219,3 +220,64 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
             shutil.rmtree(extract_dir, ignore_errors=True)
         if os.path.exists(file_path):
             os.remove(file_path)
+
+
+@router.post("/codebert-similarity")
+async def analyze_codebert_similarity_endpoint(
+    request: Request,
+):
+    """
+    Direct CodeBERT suspicious-code similarity analysis endpoint.
+    Accepts raw code snippets (Java, Kotlin, Smali) via JSON body or Form data.
+    Returns matched suspicious behavioral patterns with confidence scores and evidence references.
+    """
+    code_text = ""
+    class_name = "DirectAnalyzedClass"
+    file_path = "source.java"
+    line_number = 1
+
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        try:
+            body = await request.json()
+            code_text = body.get("code", "")
+            class_name = body.get("class_name", class_name)
+            file_path = body.get("file_path", file_path)
+            line_number = body.get("line_number", line_number)
+        except Exception:
+            pass
+    else:
+        form = await request.form()
+        code_text = str(form.get("code") or "")
+        class_name = str(form.get("class_name") or class_name)
+        file_path = str(form.get("file_path") or file_path)
+
+    if not code_text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Field 'code' must contain non-empty code to analyze."
+        )
+
+    from backend.app.static_analysis.codebert_analyzer import get_codebert_analyzer
+    cb = get_codebert_analyzer()
+    matches = cb.analyze_snippet(
+        code_text,
+        context_meta={"class_name": class_name, "file_path": file_path, "line_number": line_number}
+    )
+
+    return {
+        "status": "fallback" if cb._fallback_mode else "active",
+        "model": "heuristic-fallback" if cb._fallback_mode else cb.model_name,
+        "input": {
+            "class_name": class_name,
+            "file_path": file_path,
+            "code_snippet": code_text[:200],
+        },
+        "matches_found": len(matches),
+        "matches": matches,
+        "disclaimer": (
+            "Pretrained CodeBERT semantic code similarity analysis. Indicates behavioral resemblance "
+            "to reference suspicious templates, not an autonomous malware classification verdict."
+        )
+    }
+

@@ -106,6 +106,23 @@ def calculate_risk(manifest: Dict, code: Dict, resources: Dict, natives: Dict, y
         elif ml_pred == "benign":
             factors.append(f"Random Forest ML Classifier evaluated sample as benign ({ml_result.get('benign_probability', 0.0) * 100:.1f}% confidence)")
 
+    # 10. CodeBERT Pretrained Semantic Similarity Signal
+    codebert_data = code.get("codebert_similarity", {})
+    if codebert_data and isinstance(codebert_data, dict):
+        cb_matches = codebert_data.get("matches", [])
+        cb_points = 0
+        for m in cb_matches[:5]:
+            conf = m.get("confidence_score", 0.0)
+            if conf >= 0.70:
+                p_name = m.get("pattern_name", "Suspicious Pattern")
+                c_name = m.get("evidence", {}).get("class_name", "UnknownClass")
+                sim_pct = m.get("similarity_percentage", f"{conf * 100:.1f}%")
+                factors.append(f"CodeBERT suspicious code similarity ({sim_pct}) to '{p_name}' in {c_name}")
+                recommendations.add(f"Inspect {c_name} for {m.get('category', 'suspicious behavior')}.")
+                if m.get("severity") in ["Critical", "High"] and cb_points < 10:
+                    cb_points += 5
+        score += cb_points
+
     # Cap score
     score = min(score, 100)
     

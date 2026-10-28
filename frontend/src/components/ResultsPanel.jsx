@@ -149,6 +149,74 @@ export default function ResultsPanel({ stageName, data, stageId }) {
                   ))}
               </tbody>
           </table>
+
+          {/* CodeBERT Pretrained Semantic Similarity Analysis */}
+          {(() => {
+            const codebert = data.codebert_similarity || data.code_analysis?.codebert_similarity;
+            const matches = codebert?.matches || [];
+            return (
+              <div style={{marginTop: "24px", padding: "16px", borderRadius: "8px", background: "rgba(59, 130, 246, 0.05)", border: "1px solid rgba(59, 130, 246, 0.2)"}}>
+                <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px"}}>
+                  <h4 style={{margin: 0, display: "flex", alignItems: "center", gap: "8px", color: "#60a5fa"}}>
+                    <span>🧠</span> CodeBERT Suspicious Code Semantic Similarity ({codebert?.model || "microsoft/codebert-base"})
+                  </h4>
+                  <span className={`badge ${codebert?.status === "active" ? "badge-primary" : "badge-warning"}`} style={{fontSize: "11px", padding: "4px 8px"}}>
+                    {codebert?.status === "active" ? "Model Active • 16GB RAM Optimized" : "Heuristic Fallback"}
+                  </span>
+                </div>
+
+                <p style={{fontSize: "12px", color: "#94a3b8", margin: "0 0 14px 0", lineHeight: "1.5"}}>
+                  Pretrained CodeBERT analyzes extracted Java/Kotlin/Smali code for structural and functional similarity to known suspicious Android behavioral patterns.
+                  <em style={{display: "block", marginTop: "4px", color: "#cbd5e1"}}>Note: Measures semantic similarity to reference patterns; does not claim autonomous malware classification without a validated classifier.</em>
+                </p>
+
+                {matches.length > 0 ? (
+                  <table className="results-table">
+                    <thead>
+                      <tr>
+                        <th>Pattern / Behavior</th>
+                        <th>Category</th>
+                        <th>Confidence</th>
+                        <th>Evidence Location & Snippet</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {matches.map((m, idx) => (
+                        <tr key={idx}>
+                          <td>
+                            <strong>{m.pattern_name}</strong>
+                            <div style={{fontSize: "11px", color: "#94a3b8", marginTop: "2px"}}>{m.description}</div>
+                          </td>
+                          <td><span className="badge" style={{background: "rgba(255,255,255,0.08)", padding: "3px 6px"}}>{m.category}</span></td>
+                          <td>
+                            <span style={{
+                              fontWeight: "bold",
+                              color: m.confidence_score >= 0.8 ? "#ef4444" : (m.confidence_score >= 0.65 ? "#f59e0b" : "#3b82f6")
+                            }}>
+                              {m.similarity_percentage || `${(m.confidence_score * 100).toFixed(1)}%`}
+                            </span>
+                          </td>
+                          <td style={{fontSize: "12px"}}>
+                            <div><strong>Class:</strong> {m.evidence?.class_name}</div>
+                            <div style={{color: "#94a3b8"}}><strong>File:</strong> {m.evidence?.file_path}</div>
+                            {m.evidence?.snippet && (
+                              <pre className="code-font" style={{fontSize: "10px", margin: "4px 0 0 0", padding: "4px", background: "rgba(0,0,0,0.3)", borderRadius: "4px", whiteSpace: "pre-wrap", maxHeight: "60px", overflowY: "auto"}}>
+                                {m.evidence.snippet}
+                              </pre>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p style={{fontSize: "13px", color: "#94a3b8", margin: "8px 0 0 0"}}>
+                    No suspicious behavioral similarities matched above the confidence threshold.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
         </div>
       );
     }
@@ -206,6 +274,7 @@ export default function ResultsPanel({ stageName, data, stageId }) {
     }
     
     if (stageId === "risk") {
+      const codebertData = data.codebert_similarity || data.code_analysis?.codebert_similarity;
       return (
         <div>
           <h4>Threat Correlation Engine</h4>
@@ -247,6 +316,37 @@ export default function ResultsPanel({ stageName, data, stageId }) {
                   {data.ml_classification.active_features.length > 8 ? "..." : ""}
                 </div>
               )}
+            </div>
+          )}
+
+          {codebertData && (
+            <div style={{marginTop: "15px", marginBottom: "20px", padding: "14px", borderRadius: "8px", background: "rgba(59, 130, 246, 0.05)", border: "1px solid rgba(59, 130, 246, 0.2)"}}>
+              <h4 style={{margin: "0 0 10px 0", display: "flex", alignItems: "center", gap: "8px", color: "#60a5fa"}}>
+                <span>🧠</span> CodeBERT Suspicious Code Semantic Analysis
+              </h4>
+              <div className="metrics-grid" style={{marginBottom: "10px"}}>
+                <div className="metric-box">
+                  <span className="metric-label">Model Engine</span>
+                  <span className="metric-value" style={{fontSize: "14px"}}>
+                    {codebertData.model || "microsoft/codebert-base"}
+                  </span>
+                </div>
+                <div className="metric-box">
+                  <span className="metric-label">Behavioral Matches</span>
+                  <span className="metric-value">
+                    {codebertData.suspicious_matches_found ?? (codebertData.matches?.length || 0)}
+                  </span>
+                </div>
+                <div className="metric-box">
+                  <span className="metric-label">Peak Confidence</span>
+                  <span className="metric-value">
+                    {((codebertData.max_confidence_score || 0) * 100).toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+              <p style={{fontSize: "12px", color: "#94a3b8", margin: 0}}>
+                {codebertData.disclaimer || "Pretrained CodeBERT identifies structural similarity to known suspicious behaviors, distinct from malware classification."}
+              </p>
             </div>
           )}
 

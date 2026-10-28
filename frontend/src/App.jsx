@@ -75,7 +75,10 @@ export default function App() {
         1: { extraction: data.extraction },
         2: { manifest: data.manifest_analysis },
         3: { permissions: data.manifest_analysis?.permissions },
-        4: { code_analysis: data.code_analysis },
+        4: {
+          code_analysis: data.code_analysis,
+          codebert_similarity: data.codebert_similarity || data.code_analysis?.codebert_similarity
+        },
         5: { resource_analysis: data.resource_analysis },
         6: { native_library_analysis: data.native_library_analysis },
         7: { yara_matches: data.yara_matches },
@@ -83,7 +86,8 @@ export default function App() {
           risk_analysis: data.risk_analysis,
           certificate_analysis: data.certificate_analysis,
           iocs: data.iocs,
-          ml_classification: data.ml_classification
+          ml_classification: data.ml_classification,
+          codebert_similarity: data.codebert_similarity || data.code_analysis?.codebert_similarity
         },
         9: { report: true, apkId: data.apk_id }
       };
