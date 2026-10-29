@@ -1,5 +1,13 @@
 """Phase 9: Static Risk Correlation Engine"""
 from typing import Dict, Any, List
+from loguru import logger
+
+try:
+    from backend.app.static_analysis.llm_analyzer import generate_threat_narrative
+    _LLM_AVAILABLE = True
+except Exception:
+    _LLM_AVAILABLE = False
+    generate_threat_narrative = None  # type: ignore
 
 def calculate_risk(manifest: Dict, code: Dict, resources: Dict, natives: Dict, yara: List, certs: List = None, ml_result: Dict = None) -> Dict[str, Any]:
     """Calculates risk score 0-100 based on all static analysis findings and ML classification."""
@@ -137,13 +145,53 @@ def calculate_risk(manifest: Dict, code: Dict, resources: Dict, natives: Dict, y
         level = "Low"
     else:
         level = "Safe"
-        
-    return {
+
+    result = {
         "score": score,
         "level": level,
         "factors": factors,
         "recommendations": list(recommendations)
     }
+
+    # LLM Executive Summary — only triggered for Medium risk and above (score >= 40)
+    if score >= 40 and _LLM_AVAILABLE and generate_threat_narrative is not None:
+        try:
+            # Build a focused summary dict for the LLM prompt
+            app_name = manifest.get("metadata", {}).get("package_name", "Unknown Application")
+
+            critical_permissions = [
+                p["name"]
+                for p in manifest.get("permissions", [])
+                if p.get("severity") in ("Critical", "High")
+            ]
+
+            codebert_data = code.get("codebert_similarity", {})
+            codebert_matches = codebert_data.get("matches", []) if isinstance(codebert_data, dict) else []
+
+            ml_prediction = ml_result if isinstance(ml_result, dict) else {}
+
+            llm_summary_input = {
+                "app_name": app_name,
+                "risk_score": score,
+                "risk_level": level,
+                "critical_permissions": critical_permissions,
+                "codebert_matches": codebert_matches[:5],
+                "ml_prediction": ml_prediction,
+                "top_factors": factors[:10],
+            }
+
+            executive_summary = generate_threat_narrative(llm_summary_input)
+            result["executive_summary"] = executive_summary
+            logger.info(f"LLM executive summary appended to risk result (score={score}).")
+        except Exception as llm_exc:
+            logger.error(f"LLM narrative generation failed inside calculate_risk: {llm_exc}")
+            result["executive_summary"] = (
+                f"[Executive summary unavailable due to an internal error: {llm_exc}]"
+            )
+    else:
+        result["executive_summary"] = None
+
+    return result
 
 def generate_iocs(metadata: Dict, code: Dict, resources: Dict, certs: List) -> Dict[str, Any]:
     """Generates an aggregated list of Indicators of Compromise (IOCs)."""

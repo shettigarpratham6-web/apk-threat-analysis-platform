@@ -10,6 +10,20 @@ from loguru import logger
 
 from backend.app.static_analysis.string_entropy import detect_obfuscation
 
+try:
+    from backend.app.static_analysis.llm_analyzer import analyze_suspicious_code
+    _LLM_CODE_AVAILABLE = True
+except Exception:
+    _LLM_CODE_AVAILABLE = False
+    analyze_suspicious_code = None  # type: ignore
+
+# Obfuscation trigger keywords — snippets containing these strings qualify for LLM analysis
+_LLM_TRIGGER_KEYWORDS = (
+    "Base64", "base64", ".exec(", "loadLibrary", "DexClassLoader",
+    "reflect", "/system/bin/sh", "su -c", "SmsManager", "sendTextMessage",
+    "AccessibilityEvent", "ClipboardManager", "DevicePolicyManager",
+)
+
 # Indicators
 NETWORK_PATTERNS = {
     "urls": r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+',
@@ -145,12 +159,29 @@ def analyze_code(apk_path: str) -> Dict[str, Any]:
                                 # Capture surrounding context for CodeBERT
                                 ctx_start = max(0, idx - 4)
                                 ctx_end = min(len(lines), idx + 8)
+                                ctx_code = "".join(lines[ctx_start:ctx_end])
+
+                                # LLM de-obfuscation: call for High-severity APIs that contain
+                                # known obfuscation/exfiltration signals
+                                llm_explanation = None
+                                if (
+                                    severity == "High"
+                                    and _LLM_CODE_AVAILABLE
+                                    and analyze_suspicious_code is not None
+                                    and any(kw in ctx_code for kw in _LLM_TRIGGER_KEYWORDS)
+                                ):
+                                    try:
+                                        llm_explanation = analyze_suspicious_code(ctx_code)
+                                    except Exception as _llm_err:
+                                        logger.warning(f"LLM code analysis skipped for {api}: {_llm_err}")
+
                                 codebert_candidates.append({
-                                    "code": "".join(lines[ctx_start:ctx_end]),
+                                    "code": ctx_code,
                                     "class_name": class_name,
                                     "file_path": rel_path,
                                     "line_number": idx + 1,
                                     "api": api,
+                                    "llm_explanation": llm_explanation,
                                 })
                                 
                         # Malware Indicators
@@ -167,12 +198,29 @@ def analyze_code(apk_path: str) -> Dict[str, Any]:
                                 })
                                 ctx_start = max(0, idx - 4)
                                 ctx_end = min(len(lines), idx + 8)
+                                ctx_code = "".join(lines[ctx_start:ctx_end])
+
+                                # LLM de-obfuscation: call for Critical/High malware indicators
+                                # that carry recognised evasion or shell-execution signals
+                                llm_explanation = None
+                                if (
+                                    meta["severity"] in ("Critical", "High")
+                                    and _LLM_CODE_AVAILABLE
+                                    and analyze_suspicious_code is not None
+                                    and any(kw in ctx_code for kw in _LLM_TRIGGER_KEYWORDS)
+                                ):
+                                    try:
+                                        llm_explanation = analyze_suspicious_code(ctx_code)
+                                    except Exception as _llm_err:
+                                        logger.warning(f"LLM code analysis skipped for indicator '{ind}': {_llm_err}")
+
                                 codebert_candidates.append({
-                                    "code": "".join(lines[ctx_start:ctx_end]),
+                                    "code": ctx_code,
                                     "class_name": class_name,
                                     "file_path": rel_path,
                                     "line_number": idx + 1,
                                     "why_flagged": meta["reason"],
+                                    "llm_explanation": llm_explanation,
                                 })
 
                     # If no suspicious API triggered, sample file if small
