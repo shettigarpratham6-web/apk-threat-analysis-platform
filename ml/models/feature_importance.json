@@ -1,0 +1,1077 @@
+[
+  {
+    "feature": "transact",
+    "importance": 0.04894774797503107,
+    "rank": 1
+  },
+  {
+    "feature": "attachInterface",
+    "importance": 0.04675942126467218,
+    "rank": 2
+  },
+  {
+    "feature": "android.os.Binder",
+    "importance": 0.0451449835478447,
+    "rank": 3
+  },
+  {
+    "feature": "READ_PHONE_STATE",
+    "importance": 0.04206296349219731,
+    "rank": 4
+  },
+  {
+    "feature": "Ljava.lang.Class.getCanonicalName",
+    "importance": 0.03910322094596252,
+    "rank": 5
+  },
+  {
+    "feature": "TelephonyManager.getDeviceId",
+    "importance": 0.0347136596782356,
+    "rank": 6
+  },
+  {
+    "feature": "onServiceConnected",
+    "importance": 0.033947234746336166,
+    "rank": 7
+  },
+  {
+    "feature": "ServiceConnection",
+    "importance": 0.03117225072665759,
+    "rank": 8
+  },
+  {
+    "feature": "bindService",
+    "importance": 0.02961519913400832,
+    "rank": 9
+  },
+  {
+    "feature": "SEND_SMS",
+    "importance": 0.0244642483202971,
+    "rank": 10
+  },
+  {
+    "feature": "TelephonyManager.getLine1Number",
+    "importance": 0.022107040353040563,
+    "rank": 11
+  },
+  {
+    "feature": "TelephonyManager.getSubscriberId",
+    "importance": 0.021809219335273123,
+    "rank": 12
+  },
+  {
+    "feature": "Ljava.lang.Class.cast",
+    "importance": 0.020521786247328717,
+    "rank": 13
+  },
+  {
+    "feature": "Ljava.lang.Class.getMethods",
+    "importance": 0.018145818337686467,
+    "rank": 14
+  },
+  {
+    "feature": "android.content.pm.Signature",
+    "importance": 0.017366555107320047,
+    "rank": 15
+  },
+  {
+    "feature": "Landroid.content.Context.unregisterReceiver",
+    "importance": 0.014223002451698885,
+    "rank": 16
+  },
+  {
+    "feature": "android.telephony.SmsManager",
+    "importance": 0.013332120887481732,
+    "rank": 17
+  },
+  {
+    "feature": "ClassLoader",
+    "importance": 0.01256967719872204,
+    "rank": 18
+  },
+  {
+    "feature": "Landroid.content.Context.registerReceiver",
+    "importance": 0.012522387073444725,
+    "rank": 19
+  },
+  {
+    "feature": "READ_HISTORY_BOOKMARKS",
+    "importance": 0.012054533215492396,
+    "rank": 20
+  },
+  {
+    "feature": "Ljava.net.URLDecoder",
+    "importance": 0.011902154778762792,
+    "rank": 21
+  },
+  {
+    "feature": "chmod",
+    "importance": 0.01164442412026013,
+    "rank": 22
+  },
+  {
+    "feature": "Ljava.lang.Class.getField",
+    "importance": 0.01154091005008269,
+    "rank": 23
+  },
+  {
+    "feature": "INTERNET",
+    "importance": 0.011377316542198064,
+    "rank": 24
+  },
+  {
+    "feature": "WRITE_HISTORY_BOOKMARKS",
+    "importance": 0.0107665144026863,
+    "rank": 25
+  },
+  {
+    "feature": "getBinder",
+    "importance": 0.010766360822679032,
+    "rank": 26
+  },
+  {
+    "feature": "READ_SMS",
+    "importance": 0.010102629449349214,
+    "rank": 27
+  },
+  {
+    "feature": "RECEIVE_SMS",
+    "importance": 0.009496092422150269,
+    "rank": 28
+  },
+  {
+    "feature": "android.intent.action.BOOT_COMPLETED",
+    "importance": 0.00935213389782996,
+    "rank": 29
+  },
+  {
+    "feature": "GET_ACCOUNTS",
+    "importance": 0.009096866422225958,
+    "rank": 30
+  },
+  {
+    "feature": "ACCESS_COARSE_LOCATION",
+    "importance": 0.008793568555247955,
+    "rank": 31
+  },
+  {
+    "feature": "TelephonyManager.getSimSerialNumber",
+    "importance": 0.008065250085314052,
+    "rank": 32
+  },
+  {
+    "feature": "ACCESS_WIFI_STATE",
+    "importance": 0.007864621793754438,
+    "rank": 33
+  },
+  {
+    "feature": "Runtime.exec",
+    "importance": 0.007521720335558389,
+    "rank": 34
+  },
+  {
+    "feature": "/system/bin",
+    "importance": 0.006715419482260588,
+    "rank": 35
+  },
+  {
+    "feature": "android.telephony.gsm.SmsManager",
+    "importance": 0.006710724448494375,
+    "rank": 36
+  },
+  {
+    "feature": "Ljava.lang.Class.getMethod",
+    "importance": 0.0063295721709820925,
+    "rank": 37
+  },
+  {
+    "feature": "DexClassLoader",
+    "importance": 0.006255684932268557,
+    "rank": 38
+  },
+  {
+    "feature": "Ljava.lang.Class.getResource",
+    "importance": 0.006117150444616092,
+    "rank": 39
+  },
+  {
+    "feature": "Ljavax.crypto.spec.SecretKeySpec",
+    "importance": 0.0060253820858075,
+    "rank": 40
+  },
+  {
+    "feature": "HttpUriRequest",
+    "importance": 0.00577423207342291,
+    "rank": 41
+  },
+  {
+    "feature": "MANAGE_ACCOUNTS",
+    "importance": 0.0056635190931387455,
+    "rank": 42
+  },
+  {
+    "feature": "System.loadLibrary",
+    "importance": 0.005563040232694991,
+    "rank": 43
+  },
+  {
+    "feature": "WRITE_EXTERNAL_STORAGE",
+    "importance": 0.005496026122415588,
+    "rank": 44
+  },
+  {
+    "feature": "RECEIVE_BOOT_COMPLETED",
+    "importance": 0.005478637997651058,
+    "rank": 45
+  },
+  {
+    "feature": "android.content.pm.PackageInfo",
+    "importance": 0.005457002327417638,
+    "rank": 46
+  },
+  {
+    "feature": "HttpGet.init",
+    "importance": 0.005375849169857298,
+    "rank": 47
+  },
+  {
+    "feature": "WAKE_LOCK",
+    "importance": 0.005347306080643766,
+    "rank": 48
+  },
+  {
+    "feature": "findClass",
+    "importance": 0.005317744911847571,
+    "rank": 49
+  },
+  {
+    "feature": "HttpPost.init",
+    "importance": 0.005249087777865067,
+    "rank": 50
+  },
+  {
+    "feature": "ACCESS_FINE_LOCATION",
+    "importance": 0.005202468058929032,
+    "rank": 51
+  },
+  {
+    "feature": "Runtime.getRuntime",
+    "importance": 0.005188566412100479,
+    "rank": 52
+  },
+  {
+    "feature": "android.intent.action.SEND",
+    "importance": 0.004999650128539256,
+    "rank": 53
+  },
+  {
+    "feature": "Ljava.lang.Class.getDeclaredField",
+    "importance": 0.004981363079998327,
+    "rank": 54
+  },
+  {
+    "feature": "TelephonyManager.getNetworkOperator",
+    "importance": 0.0049701904175025605,
+    "rank": 55
+  },
+  {
+    "feature": "Ljava.lang.Object.getClass",
+    "importance": 0.0048074880073605665,
+    "rank": 56
+  },
+  {
+    "feature": "Ljava.lang.Class.forName",
+    "importance": 0.004586329333010785,
+    "rank": 57
+  },
+  {
+    "feature": "ACCESS_NETWORK_STATE",
+    "importance": 0.0045370479666385485,
+    "rank": 58
+  },
+  {
+    "feature": "WRITE_SETTINGS",
+    "importance": 0.004406857316816112,
+    "rank": 59
+  },
+  {
+    "feature": "WRITE_SMS",
+    "importance": 0.004401948610889161,
+    "rank": 60
+  },
+  {
+    "feature": "USE_CREDENTIALS",
+    "importance": 0.004396728101180584,
+    "rank": 61
+  },
+  {
+    "feature": "getCallingUid",
+    "importance": 0.004394733915945992,
+    "rank": 62
+  },
+  {
+    "feature": "mount",
+    "importance": 0.004292343930683262,
+    "rank": 63
+  },
+  {
+    "feature": "SecretKey",
+    "importance": 0.0042490397961950435,
+    "rank": 64
+  },
+  {
+    "feature": "KeySpec",
+    "importance": 0.004248154318157144,
+    "rank": 65
+  },
+  {
+    "feature": "GET_TASKS",
+    "importance": 0.004217753215778736,
+    "rank": 66
+  },
+  {
+    "feature": "Binder",
+    "importance": 0.004214295787023873,
+    "rank": 67
+  },
+  {
+    "feature": "onBind",
+    "importance": 0.004154805092353177,
+    "rank": 68
+  },
+  {
+    "feature": "IBinder",
+    "importance": 0.003964489267632564,
+    "rank": 69
+  },
+  {
+    "feature": "CAMERA",
+    "importance": 0.0038349072478169326,
+    "rank": 70
+  },
+  {
+    "feature": "VIBRATE",
+    "importance": 0.003822086118139939,
+    "rank": 71
+  },
+  {
+    "feature": "abortBroadcast",
+    "importance": 0.003818893393270872,
+    "rank": 72
+  },
+  {
+    "feature": "android.intent.action.TIME_SET",
+    "importance": 0.0036373895585012726,
+    "rank": 73
+  },
+  {
+    "feature": "Ljava.lang.Class.getPackage",
+    "importance": 0.0036106172147140243,
+    "rank": 74
+  },
+  {
+    "feature": "Ljavax.crypto.Cipher",
+    "importance": 0.0034793754207823463,
+    "rank": 75
+  },
+  {
+    "feature": "PackageInstaller",
+    "importance": 0.0033132500842967525,
+    "rank": 76
+  },
+  {
+    "feature": "TelephonyManager.getSimOperator",
+    "importance": 0.0032976529480962104,
+    "rank": 77
+  },
+  {
+    "feature": "android.os.IBinder",
+    "importance": 0.0031797531259660904,
+    "rank": 78
+  },
+  {
+    "feature": "READ_CONTACTS",
+    "importance": 0.0031609583103732936,
+    "rank": 79
+  },
+  {
+    "feature": "android.intent.action.PACKAGE_REPLACED",
+    "importance": 0.0028237971482358674,
+    "rank": 80
+  },
+  {
+    "feature": "CHANGE_WIFI_STATE",
+    "importance": 0.0026941912450948596,
+    "rank": 81
+  },
+  {
+    "feature": "READ_SYNC_SETTINGS",
+    "importance": 0.0026681892407715434,
+    "rank": 82
+  },
+  {
+    "feature": "ACCESS_LOCATION_EXTRA_COMMANDS",
+    "importance": 0.0026170091386461198,
+    "rank": 83
+  },
+  {
+    "feature": "remount",
+    "importance": 0.0025480377982251374,
+    "rank": 84
+  },
+  {
+    "feature": "TelephonyManager.getSimCountryIso",
+    "importance": 0.0025083413857442793,
+    "rank": 85
+  },
+  {
+    "feature": "CALL_PHONE",
+    "importance": 0.0024748747619788044,
+    "rank": 86
+  },
+  {
+    "feature": "INSTALL_PACKAGES",
+    "importance": 0.0024223456637108894,
+    "rank": 87
+  },
+  {
+    "feature": "RESTART_PACKAGES",
+    "importance": 0.0022584692865832644,
+    "rank": 88
+  },
+  {
+    "feature": "createSubprocess",
+    "importance": 0.0021001518161655676,
+    "rank": 89
+  },
+  {
+    "feature": "MODIFY_PHONE_STATE",
+    "importance": 0.0020899839510278404,
+    "rank": 90
+  },
+  {
+    "feature": "divideMessage",
+    "importance": 0.0020786217648209415,
+    "rank": 91
+  },
+  {
+    "feature": "/system/app",
+    "importance": 0.0019688668735705645,
+    "rank": 92
+  },
+  {
+    "feature": "WRITE_APN_SETTINGS",
+    "importance": 0.001961435298024262,
+    "rank": 93
+  },
+  {
+    "feature": "RECORD_AUDIO",
+    "importance": 0.0019607990399452906,
+    "rank": 94
+  },
+  {
+    "feature": "AUTHENTICATE_ACCOUNTS",
+    "importance": 0.0019168276505652183,
+    "rank": 95
+  },
+  {
+    "feature": "CHANGE_NETWORK_STATE",
+    "importance": 0.0018180116453130372,
+    "rank": 96
+  },
+  {
+    "feature": "TelephonyManager.isNetworkRoaming",
+    "importance": 0.0017956326952237609,
+    "rank": 97
+  },
+  {
+    "feature": "DISABLE_KEYGUARD",
+    "importance": 0.0017504811892780033,
+    "rank": 98
+  },
+  {
+    "feature": "android.intent.action.PACKAGE_ADDED",
+    "importance": 0.001707517066054065,
+    "rank": 99
+  },
+  {
+    "feature": "BLUETOOTH_ADMIN",
+    "importance": 0.0016852547575253074,
+    "rank": 100
+  },
+  {
+    "feature": "BLUETOOTH",
+    "importance": 0.001639934292859331,
+    "rank": 101
+  },
+  {
+    "feature": "sendDataMessage",
+    "importance": 0.0016084364776652032,
+    "rank": 102
+  },
+  {
+    "feature": "SET_WALLPAPER",
+    "importance": 0.0016006879473419917,
+    "rank": 103
+  },
+  {
+    "feature": "BROADCAST_STICKY",
+    "importance": 0.0015965492459435585,
+    "rank": 104
+  },
+  {
+    "feature": "READ_LOGS",
+    "importance": 0.00158631662331469,
+    "rank": 105
+  },
+  {
+    "feature": "NFC",
+    "importance": 0.0015672828082848767,
+    "rank": 106
+  },
+  {
+    "feature": "android.intent.action.TIMEZONE_CHANGED",
+    "importance": 0.0015190138403531144,
+    "rank": 107
+  },
+  {
+    "feature": "WRITE_CONTACTS",
+    "importance": 0.0015129461623156198,
+    "rank": 108
+  },
+  {
+    "feature": "MODIFY_AUDIO_SETTINGS",
+    "importance": 0.0014740672210845106,
+    "rank": 109
+  },
+  {
+    "feature": "SYSTEM_ALERT_WINDOW",
+    "importance": 0.0014476717837511829,
+    "rank": 110
+  },
+  {
+    "feature": "chown",
+    "importance": 0.001420181936378979,
+    "rank": 111
+  },
+  {
+    "feature": "IRemoteService",
+    "importance": 0.0013405577466577964,
+    "rank": 112
+  },
+  {
+    "feature": "READ_EXTERNAL_STORAGE",
+    "importance": 0.0013087768877872636,
+    "rank": 113
+  },
+  {
+    "feature": "android.intent.action.PACKAGE_REMOVED",
+    "importance": 0.0012613361634717121,
+    "rank": 114
+  },
+  {
+    "feature": "BIND_WALLPAPER",
+    "importance": 0.0011821086725586345,
+    "rank": 115
+  },
+  {
+    "feature": "TelephonyManager.getCallState",
+    "importance": 0.0011793880711137793,
+    "rank": 116
+  },
+  {
+    "feature": "PROCESS_OUTGOING_CALLS",
+    "importance": 0.0011619790921181322,
+    "rank": 117
+  },
+  {
+    "feature": "WRITE_SYNC_SETTINGS",
+    "importance": 0.0011550770262083656,
+    "rank": 118
+  },
+  {
+    "feature": "Ljava.lang.Class.getClasses",
+    "importance": 0.0011523672864591765,
+    "rank": 119
+  },
+  {
+    "feature": "ProcessBuilder",
+    "importance": 0.0011166184978780675,
+    "rank": 120
+  },
+  {
+    "feature": "defineClass",
+    "importance": 0.0010425831124462681,
+    "rank": 121
+  },
+  {
+    "feature": "WRITE_SECURE_SETTINGS",
+    "importance": 0.001029596970516686,
+    "rank": 122
+  },
+  {
+    "feature": "android.intent.action.SEND_MULTIPLE",
+    "importance": 0.001028640662522068,
+    "rank": 123
+  },
+  {
+    "feature": "READ_CALENDAR",
+    "importance": 0.0010273002027523014,
+    "rank": 124
+  },
+  {
+    "feature": "sendMultipartTextMessage",
+    "importance": 0.0009733559971890872,
+    "rank": 125
+  },
+  {
+    "feature": "android.intent.action.NEW_OUTGOING_CALL",
+    "importance": 0.0009521396073952673,
+    "rank": 126
+  },
+  {
+    "feature": "KILL_BACKGROUND_PROCESSES",
+    "importance": 0.0009277692106677392,
+    "rank": 127
+  },
+  {
+    "feature": "MOUNT_UNMOUNT_FILESYSTEMS",
+    "importance": 0.0008807190335550511,
+    "rank": 128
+  },
+  {
+    "feature": "BIND_REMOTEVIEWS",
+    "importance": 0.0008777210906627752,
+    "rank": 129
+  },
+  {
+    "feature": "DELETE_PACKAGES",
+    "importance": 0.000828310620754005,
+    "rank": 130
+  },
+  {
+    "feature": "CHANGE_CONFIGURATION",
+    "importance": 0.0007377704870976999,
+    "rank": 131
+  },
+  {
+    "feature": "READ_SYNC_STATS",
+    "importance": 0.0007192129466986008,
+    "rank": 132
+  },
+  {
+    "feature": "PERSISTENT_ACTIVITY",
+    "importance": 0.0006685791085846236,
+    "rank": 133
+  },
+  {
+    "feature": "BATTERY_STATS",
+    "importance": 0.0006679087111026051,
+    "rank": 134
+  },
+  {
+    "feature": "FLASHLIGHT",
+    "importance": 0.0006505657057123855,
+    "rank": 135
+  },
+  {
+    "feature": "URLClassLoader",
+    "importance": 0.0006217669689682745,
+    "rank": 136
+  },
+  {
+    "feature": "android.intent.action.ACTION_POWER_CONNECTED",
+    "importance": 0.0006068006940673254,
+    "rank": 137
+  },
+  {
+    "feature": "READ_PROFILE",
+    "importance": 0.0006025620741573081,
+    "rank": 138
+  },
+  {
+    "feature": "WRITE_CALENDAR",
+    "importance": 0.0006013407788960178,
+    "rank": 139
+  },
+  {
+    "feature": "CLEAR_APP_CACHE",
+    "importance": 0.0005730822446754157,
+    "rank": 140
+  },
+  {
+    "feature": "GLOBAL_SEARCH",
+    "importance": 0.0005434409574702522,
+    "rank": 141
+  },
+  {
+    "feature": "DEVICE_POWER",
+    "importance": 0.0005363496550118157,
+    "rank": 142
+  },
+  {
+    "feature": "ACCESS_MOCK_LOCATION",
+    "importance": 0.0005228415122365389,
+    "rank": 143
+  },
+  {
+    "feature": "android.intent.action.ACTION_SHUTDOWN",
+    "importance": 0.0005222398680904028,
+    "rank": 144
+  },
+  {
+    "feature": "STATUS_BAR",
+    "importance": 0.0005122463872019164,
+    "rank": 145
+  },
+  {
+    "feature": "CHANGE_WIFI_MULTICAST_STATE",
+    "importance": 0.0005029827832266124,
+    "rank": 146
+  },
+  {
+    "feature": "MASTER_CLEAR",
+    "importance": 0.00048550745382491324,
+    "rank": 147
+  },
+  {
+    "feature": "BIND_INPUT_METHOD",
+    "importance": 0.0004790202010797497,
+    "rank": 148
+  },
+  {
+    "feature": "CLEAR_APP_USER_DATA",
+    "importance": 0.0004787723065583506,
+    "rank": 149
+  },
+  {
+    "feature": "READ_CALL_LOG",
+    "importance": 0.00046993572718862913,
+    "rank": 150
+  },
+  {
+    "feature": "ACCESS_SURFACE_FLINGER",
+    "importance": 0.0004651502672169458,
+    "rank": 151
+  },
+  {
+    "feature": "SET_PREFERRED_APPLICATIONS",
+    "importance": 0.0004637837842105553,
+    "rank": 152
+  },
+  {
+    "feature": "getCallingPid",
+    "importance": 0.0004585299730703024,
+    "rank": 153
+  },
+  {
+    "feature": "PathClassLoader",
+    "importance": 0.00044604020478333935,
+    "rank": 154
+  },
+  {
+    "feature": "Ljava.lang.Class.getDeclaredClasses",
+    "importance": 0.00044565366452181454,
+    "rank": 155
+  },
+  {
+    "feature": "REBOOT",
+    "importance": 0.00041927663502036285,
+    "rank": 156
+  },
+  {
+    "feature": "DELETE_CACHE_FILES",
+    "importance": 0.00041058934046488116,
+    "rank": 157
+  },
+  {
+    "feature": "GET_PACKAGE_SIZE",
+    "importance": 0.0004043950455249188,
+    "rank": 158
+  },
+  {
+    "feature": "BROADCAST_SMS",
+    "importance": 0.00040349607721094157,
+    "rank": 159
+  },
+  {
+    "feature": "EXPAND_STATUS_BAR",
+    "importance": 0.0003975628167899096,
+    "rank": 160
+  },
+  {
+    "feature": "BIND_DEVICE_ADMIN",
+    "importance": 0.0003791512090903814,
+    "rank": 161
+  },
+  {
+    "feature": "SET_ALARM",
+    "importance": 0.00035629014740595115,
+    "rank": 162
+  },
+  {
+    "feature": "android.intent.action.SCREEN_OFF",
+    "importance": 0.00031527331276596095,
+    "rank": 163
+  },
+  {
+    "feature": "android.intent.action.SENDTO",
+    "importance": 0.00029800613835631346,
+    "rank": 164
+  },
+  {
+    "feature": "Runtime.load",
+    "importance": 0.00029207238494953226,
+    "rank": 165
+  },
+  {
+    "feature": "SET_ORIENTATION",
+    "importance": 0.00028639722966939107,
+    "rank": 166
+  },
+  {
+    "feature": "android.intent.action.PACKAGE_CHANGED",
+    "importance": 0.0002852141423293468,
+    "rank": 167
+  },
+  {
+    "feature": "RECEIVE_MMS",
+    "importance": 0.0002825404140253749,
+    "rank": 168
+  },
+  {
+    "feature": "CALL_PRIVILEGED",
+    "importance": 0.00027990913407534794,
+    "rank": 169
+  },
+  {
+    "feature": "RECEIVE_WAP_PUSH",
+    "importance": 0.0002750684724923777,
+    "rank": 170
+  },
+  {
+    "feature": "android.intent.action.ACTION_POWER_DISCONNECTED",
+    "importance": 0.00027251828787773263,
+    "rank": 171
+  },
+  {
+    "feature": "WRITE_CALL_LOG",
+    "importance": 0.00026306117062734654,
+    "rank": 172
+  },
+  {
+    "feature": "android.intent.action.SET_WALLPAPER",
+    "importance": 0.00024153910137887413,
+    "rank": 173
+  },
+  {
+    "feature": "ACCOUNT_MANAGER",
+    "importance": 0.00024052116705124284,
+    "rank": 174
+  },
+  {
+    "feature": "CONTROL_LOCATION_UPDATES",
+    "importance": 0.00022967313676377815,
+    "rank": 175
+  },
+  {
+    "feature": "android.intent.action.PACKAGE_DATA_CLEARED",
+    "importance": 0.00022762986515269793,
+    "rank": 176
+  },
+  {
+    "feature": "android.intent.action.SCREEN_ON",
+    "importance": 0.0002251960542725608,
+    "rank": 177
+  },
+  {
+    "feature": "CHANGE_COMPONENT_ENABLED_STATE",
+    "importance": 0.00021057601623568383,
+    "rank": 178
+  },
+  {
+    "feature": "SUBSCRIBED_FEEDS_READ",
+    "importance": 0.00020710866036619536,
+    "rank": 179
+  },
+  {
+    "feature": "BROADCAST_WAP_PUSH",
+    "importance": 0.00019851647002260377,
+    "rank": 180
+  },
+  {
+    "feature": "HARDWARE_TEST",
+    "importance": 0.00018975975094526017,
+    "rank": 181
+  },
+  {
+    "feature": "WRITE_GSERVICES",
+    "importance": 0.00016568857004027967,
+    "rank": 182
+  },
+  {
+    "feature": "SET_WALLPAPER_HINTS",
+    "importance": 0.00016329839406934113,
+    "rank": 183
+  },
+  {
+    "feature": "android.intent.action.PACKAGE_RESTARTED",
+    "importance": 0.00015703313711362715,
+    "rank": 184
+  },
+  {
+    "feature": "BIND_APPWIDGET",
+    "importance": 0.00015489704003031858,
+    "rank": 185
+  },
+  {
+    "feature": "android.intent.action.CALL",
+    "importance": 0.00015266363563274984,
+    "rank": 186
+  },
+  {
+    "feature": "INSTALL_LOCATION_PROVIDER",
+    "importance": 0.00012375251612327013,
+    "rank": 187
+  },
+  {
+    "feature": "READ_USER_DICTIONARY",
+    "importance": 0.00010455462608999966,
+    "rank": 188
+  },
+  {
+    "feature": "UPDATE_DEVICE_STATS",
+    "importance": 0.00010047962648644509,
+    "rank": 189
+  },
+  {
+    "feature": "SET_TIME_ZONE",
+    "importance": 9.369813296982925e-05,
+    "rank": 190
+  },
+  {
+    "feature": "DUMP",
+    "importance": 7.987413326749941e-05,
+    "rank": 191
+  },
+  {
+    "feature": "REORDER_TASKS",
+    "importance": 7.87354726347841e-05,
+    "rank": 192
+  },
+  {
+    "feature": "READ_FRAME_BUFFER",
+    "importance": 7.835751099420845e-05,
+    "rank": 193
+  },
+  {
+    "feature": "SET_TIME",
+    "importance": 7.775774698295109e-05,
+    "rank": 194
+  },
+  {
+    "feature": "INTERNAL_SYSTEM_WINDOW",
+    "importance": 7.450176755694229e-05,
+    "rank": 195
+  },
+  {
+    "feature": "android.intent.action.CALL_BUTTON",
+    "importance": 6.80912406922219e-05,
+    "rank": 196
+  },
+  {
+    "feature": "android.intent.action.BATTERY_LOW",
+    "importance": 6.203247509634835e-05,
+    "rank": 197
+  },
+  {
+    "feature": "WRITE_USER_DICTIONARY",
+    "importance": 5.864578998446011e-05,
+    "rank": 198
+  },
+  {
+    "feature": "android.intent.action.BATTERY_OKAY",
+    "importance": 5.79437580350789e-05,
+    "rank": 199
+  },
+  {
+    "feature": "SUBSCRIBED_FEEDS_WRITE",
+    "importance": 4.429984523239631e-05,
+    "rank": 200
+  },
+  {
+    "feature": "SET_PROCESS_LIMIT",
+    "importance": 4.253937286056002e-05,
+    "rank": 201
+  },
+  {
+    "feature": "MOUNT_FORMAT_FILESYSTEMS",
+    "importance": 4.25259886306585e-05,
+    "rank": 202
+  },
+  {
+    "feature": "BIND_ACCESSIBILITY_SERVICE",
+    "importance": 3.928431171360985e-05,
+    "rank": 203
+  },
+  {
+    "feature": "SET_ACTIVITY_WATCHER",
+    "importance": 3.7625489296661707e-05,
+    "rank": 204
+  },
+  {
+    "feature": "READ_SOCIAL_STREAM",
+    "importance": 3.492568362219213e-05,
+    "rank": 205
+  },
+  {
+    "feature": "ADD_VOICEMAIL",
+    "importance": 3.3460456404124124e-05,
+    "rank": 206
+  },
+  {
+    "feature": "WRITE_PROFILE",
+    "importance": 3.106937173309862e-05,
+    "rank": 207
+  },
+  {
+    "feature": "intent.action.RUN",
+    "importance": 2.7213075508948193e-05,
+    "rank": 208
+  },
+  {
+    "feature": "Context.bindService",
+    "importance": 2.4160354022593487e-05,
+    "rank": 209
+  },
+  {
+    "feature": "Process.start",
+    "importance": 1.905129120605057e-05,
+    "rank": 210
+  },
+  {
+    "feature": "MessengerService",
+    "importance": 1.6752218348203533e-05,
+    "rank": 211
+  },
+  {
+    "feature": "Runtime.loadLibrary",
+    "importance": 5.655898754047695e-06,
+    "rank": 212
+  },
+  {
+    "feature": "WRITE_SOCIAL_STREAM",
+    "importance": 3.8777240331773784e-06,
+    "rank": 213
+  },
+  {
+    "feature": "BIND_VPN_SERVICE",
+    "importance": 2.5754660130933316e-06,
+    "rank": 214
+  },
+  {
+    "feature": "BIND_TEXT_SERVICE",
+    "importance": 2.1282768837822456e-06,
+    "rank": 215
+  }
+]

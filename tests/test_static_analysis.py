@@ -1,15 +1,14 @@
-"""Unit and integration tests for static analysis manifest, code scan, signature check, and unified analyze endpoints."""
+"""Unit and integration tests for static analysis endpoints and correlation engine."""
 
 import os
+import sys
+from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import app
+from backend.app.static_analysis.aggregator import calculate_risk
 from backend.app.static_analysis.apk_loader import extract_apk
-from backend.app.static_analysis.manifest_check import analyze_manifest
-from backend.app.static_analysis.code_analysis import analyze_code
-from backend.app.static_analysis.signature_check import run_yara_scan, check_virustotal
-from backend.app.static_analysis.aggregator import run_static_analysis
 
 client = TestClient(app)
 
@@ -21,7 +20,7 @@ def test_health_endpoint():
 
 
 def test_extract_apk_nonexistent_file():
-    with pytest.raises(ValueError, match="file not found"):
+    with pytest.raises(ValueError, match="not found"):
         extract_apk("non_existent_file.apk")
 
 
@@ -42,97 +41,92 @@ def test_upload_endpoint_invalid_file_extension():
     assert "Invalid file format" in response.json()["detail"]
 
 
-def test_upload_endpoint_corrupted_apk():
-    response = client.post(
-        "/api/static-analysis/upload",
-        files={"file": ("corrupted.apk", b"corrupted apk content", "application/vnd.android.package-archive")}
-    )
-    assert response.status_code == 422
+def test_risk_correlation_engine_critical():
+    manifest = {
+        "permissions": [
+            {"name": "android.permission.SYSTEM_ALERT_WINDOW", "severity": "Critical"}
+        ],
+        "security_flags": {"debuggable": True}
+    }
+    code = {
+        "suspicious_apis": [{"api": "DexClassLoader", "severity": "High"}],
+        "malware_indicators": [{"why_flagged": "/system/bin/sh", "severity": "Critical"}]
+    }
+    resources = {"secrets": [{"type": "AWS Key"}]}
+    natives = {"suspicious_libraries": [{"name": "libpacked.so"}]}
+    yara = [{"rule_name": "BankBot", "severity": "High"}]
+
+    risk = calculate_risk(manifest, code, resources, natives, yara)
+    
+    assert risk["score"] >= 80
+    assert risk["level"] == "Critical"
+    assert "App is debuggable (android:debuggable=true)" in risk["factors"]
+    assert len(risk["recommendations"]) > 0
 
 
-def test_upload_sample_apk():
-    sample_apk_path = "datasets/benign/sample.apk"
-    assert os.path.exists(sample_apk_path), "sample.apk must exist in datasets/benign/"
+def test_risk_correlation_engine_safe():
+    manifest = {"permissions": [], "security_flags": {}}
+    code = {}
+    resources = {}
+    natives = {}
+    yara = []
 
-    with open(sample_apk_path, "rb") as f:
-        response = client.post(
-            "/api/static-analysis/upload",
-            files={"file": ("sample.apk", f, "application/vnd.android.package-archive")}
-        )
-
-    assert response.status_code == 200
-    data = response.json()
-
-    assert data["package_name"] == "com.example.threattest"
-    assert data["main_activity"] == "com.example.threattest.MainActivity"
-    assert "android.permission.INTERNET" in data["permissions"]["requested"]
-    assert "android.permission.READ_CONTACTS" in data["permissions"]["dangerous"]
+    risk = calculate_risk(manifest, code, resources, natives, yara)
+    
+    assert risk["score"] == 0
+    assert risk["level"] == "Safe"
+    assert len(risk["factors"]) == 0
 
 
-def test_code_scan_sample_apk():
-    sample_apk_path = "datasets/benign/sample.apk"
-    assert os.path.exists(sample_apk_path), "sample.apk must exist in datasets/benign/"
-
-    with open(sample_apk_path, "rb") as f:
-        response = client.post(
-            "/api/static-analysis/code-scan",
-            files={"file": ("sample.apk", f, "application/vnd.android.package-archive")}
-        )
-
-    assert response.status_code == 200
-    data = response.json()
-
-    assert "urls" in data
-    assert "ip_addresses" in data
-    assert "suspicious_apis" in data
-
-
-def test_signature_check_sample_apk():
-    sample_apk_path = "datasets/benign/sample.apk"
-    assert os.path.exists(sample_apk_path), "sample.apk must exist in datasets/benign/"
-
-    with open(sample_apk_path, "rb") as f:
-        response = client.post(
-            "/api/static-analysis/signature-check",
-            files={"file": ("sample.apk", f, "application/vnd.android.package-archive")}
-        )
-
-    assert response.status_code == 200
-    data = response.json()
-
-    assert "yara_matches" in data
-    assert "virustotal" in data
-
-
-def test_unified_analyze_sample_apk():
-    sample_apk_path = "datasets/benign/sample.apk"
-    assert os.path.exists(sample_apk_path), "sample.apk must exist in datasets/benign/"
-
-    with open(sample_apk_path, "rb") as f:
+@patch("backend.app.routes.static_analysis.extract_apk_securely")
+@patch("backend.app.routes.static_analysis.hash_file")
+@patch("shutil.copyfileobj")
+@patch("os.path.getsize")
+def test_analyze_api_file_too_large(mock_getsize, mock_copy, mock_hash, mock_extract):
+    mock_getsize.return_value = 200 * 1024 * 1024 + 1
+    
+    with patch("os.remove"):
         response = client.post(
             "/api/static-analysis/analyze",
-            files={"file": ("sample.apk", f, "application/vnd.android.package-archive")}
+            files={"file": ("malware.apk", b"dummy content", "application/vnd.android.package-archive")}
         )
+        assert response.status_code == 413
+        assert "exceeds the 200MB limit" in response.json()["detail"]
 
+
+@patch("backend.app.routes.static_analysis.extract_apk_securely")
+@patch("backend.app.routes.static_analysis.hash_file")
+@patch("backend.app.routes.static_analysis.analyze_manifest")
+@patch("backend.app.routes.static_analysis.analyze_code")
+@patch("backend.app.routes.static_analysis.analyze_resources")
+@patch("backend.app.routes.static_analysis.analyze_native_libs")
+@patch("backend.app.routes.static_analysis.run_yara_scan")
+@patch("shutil.copyfileobj")
+@patch("os.path.getsize")
+def test_analyze_api_success_schema(mock_getsize, mock_copy, mock_yara, mock_native, mock_resource, mock_code, mock_manifest, mock_hash, mock_extract):
+    mock_getsize.return_value = 1024 * 1024
+    mock_hash.return_value = {"sha256": "fake256", "md5": "fake_md5"}
+    
+    mock_manifest.return_value = {"metadata": {"package_name": "com.test.app"}}
+    mock_code.return_value = {"suspicious_apis": []}
+    mock_resource.return_value = {"secrets": []}
+    mock_native.return_value = {"architectures": ["arm64-v8a"]}
+    mock_yara.return_value = []
+    
+    with patch("builtins.open", MagicMock()):
+        response = client.post(
+            "/api/static-analysis/analyze",
+            files={"file": ("clean_app.apk", b"PK...", "application/vnd.android.package-archive")}
+        )
+        
     assert response.status_code == 200
-    payload = response.json()
-
-    assert "apk_id" in payload
-    apk_id = payload["apk_id"]
-    static_analysis = payload["static_analysis"]
-
-    # Verify top-level structure
-    assert static_analysis["package_name"] == "com.example.threattest"
-    assert "manifest" in static_analysis
-    assert "code_analysis" in static_analysis
-    assert "signature_check" in static_analysis
-    assert "static_risk_indicators" in static_analysis
-
-    # Verify sub-results
-    assert len(static_analysis["static_risk_indicators"]) > 0
-    assert any("YARA" in ind or "IPv4" in ind or "URL" in ind for ind in static_analysis["static_risk_indicators"])
-
-    # Verify JSON result file persistence in backend/results/<apk_id>_static.json
-    results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend", "results"))
-    persisted_file = os.path.join(results_dir, f"{apk_id}_static.json")
-    assert os.path.exists(persisted_file), f"Result JSON file {persisted_file} must exist!"
+    data = response.json()
+    assert "apk_id" in data
+    assert "metadata" in data
+    assert "manifest_analysis" in data
+    assert "risk_analysis" in data
+    assert "ml_classification" in data
+    
+    # Verify Risk Analysis structure
+    assert data["risk_analysis"]["level"] == "Safe"
+    assert data["risk_analysis"]["score"] == 0

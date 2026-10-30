@@ -1,0 +1,15 @@
+# Static Analysis Roadmap
+
+- [x] **Phase 1: Environment Setup** (Install dependencies, download JADX/Apktool)
+- [x] **Phase 2: Repository Audit** (Generate documentation)
+- [ ] **Phase 3: APK Upload Pipeline** (Validation, Secure Extraction, Hashing)
+- [ ] **Phase 4: Manifest Analysis** (Extract components, Intent Filters, Permissions)
+- [ ] **Phase 5: DEX Code Analysis** (Decompile via JADX, scan network indicators/APIs)
+- [ ] **Phase 6: Resource Analysis** (Scan assets/res for configs, secrets, API keys)
+- [ ] **Phase 7: Native Library Analysis** (Inspect ABI, JNI, suspicious `.so` libraries)
+- [ ] **Phase 8: YARA Signature Scanner** (Run rules from `yara_rules/`)
+- [ ] **Phase 9: Static Risk Correlation Engine** (0-100 Score, Risk Breakdown)
+- [ ] **Phase 10: Frontend UI** (Animated 10-stage pipeline)
+- [ ] **Phase 11: Forensic Report Generator** (HTML, PDF, JSON exports)
+- [ ] **Phase 12: Security Hardening** (Cleanup, constraints, logs)
+- [ ] **Phase 13: Testing** (End-to-End tests with mock APK fixture)

@@ -74,6 +74,7 @@ def compute_risk_score(
         "suspicious_apis_score": 0,
         "c2_hosts_score": 0,
         "server_reputation_score": 0,
+        "ml_classifier_score": 0,
     }
     contributing_factors: List[str] = []
 
@@ -173,6 +174,18 @@ def compute_risk_score(
                 rep_parts.append(f"{susp_cnt} suspicious")
             contributing_factors.append(
                 f"External reputation lookup flagged {', '.join(rep_parts)} server(s)"
+            )
+
+    # 7. Static ML Random Forest Classifier Verdict
+    ml_info = static.get("ml_classification", static_results.get("ml_classification", {}))
+    if ml_info and isinstance(ml_info, dict):
+        ml_pred = ml_info.get("prediction", "").lower()
+        mal_prob = ml_info.get("malware_probability", 0.0)
+        if ml_pred == "malware":
+            ml_points = min(20, int(mal_prob * 20))
+            score_breakdown["ml_classifier_score"] = ml_points
+            contributing_factors.append(
+                f"Static Random Forest ML Classifier predicted malware ({mal_prob * 100:.1f}% probability)"
             )
 
     # Calculate raw score sum and clamp to 0-100

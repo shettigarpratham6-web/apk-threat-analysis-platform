@@ -1,9 +1,7 @@
 import React, { useState } from "react";
-import { uploadAndAnalyzeStatic } from "../api/client";
 
-export default function UploadPanel({ onUploadSuccess, onError }) {
+export default function UploadPanel({ onUpload, isRunning }) {
   const [selectedFile, setSelectedFile] = useState(null);
-  const [loading, setLoading] = useState(false);
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -11,35 +9,20 @@ export default function UploadPanel({ onUploadSuccess, onError }) {
     }
   };
 
-  const handleUpload = async () => {
-    if (!selectedFile) {
-      if (onError) onError("Please select a valid .apk file first.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const data = await uploadAndAnalyzeStatic(selectedFile);
-      setLoading(false);
-      if (onUploadSuccess) {
-        onUploadSuccess(data);
-      }
-    } catch (err) {
-      setLoading(false);
-      if (onError) {
-        onError(`Upload failed: ${err.message}`);
-      }
+  const handleUpload = () => {
+    if (selectedFile) {
+      onUpload(selectedFile);
     }
   };
 
   return (
     <div className="card upload-card">
       <div className="card-header">
-        <h2 className="card-title">1. APK Ingestion & Inital Static Scan</h2>
+        <h2 className="card-title">1. APK Ingestion</h2>
         <span className="card-badge">Stage 1</span>
       </div>
       <p className="card-desc">
-        Select an Android APK file to upload into the platform sandbox directory and execute automated manifest, DEX bytecode, YARA, and signature scans.
+        Select an Android APK file to upload and execute the automated static analysis pipeline.
       </p>
 
       <div className="upload-controls">
@@ -48,7 +31,7 @@ export default function UploadPanel({ onUploadSuccess, onError }) {
           accept=".apk"
           id="apk-file-input"
           onChange={handleFileChange}
-          disabled={loading}
+          disabled={isRunning}
           className="file-input"
         />
 
@@ -63,10 +46,10 @@ export default function UploadPanel({ onUploadSuccess, onError }) {
 
         <button
           onClick={handleUpload}
-          disabled={!selectedFile || loading}
+          disabled={!selectedFile || isRunning}
           className="btn btn-primary"
         >
-          {loading ? "Analyzing APK..." : "Start Pipeline Analysis"}
+          {isRunning ? "Pipeline Running..." : "Start Pipeline Analysis"}
         </button>
       </div>
     </div>

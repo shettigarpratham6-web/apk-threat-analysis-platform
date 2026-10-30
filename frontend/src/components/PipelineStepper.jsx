@@ -4,31 +4,13 @@ export default function PipelineStepper({
   stages,
   currentStageIndex,
   onSelectStage,
-  onRunNextStage,
-  onRunAllRemaining,
   isRunning,
   hasApk,
 }) {
   return (
     <div className="card stepper-card">
       <div className="card-header">
-        <h2 className="card-title">Analysis Pipeline Lifecycle</h2>
-        <div className="stepper-actions">
-          <button
-            className="btn btn-secondary btn-sm"
-            disabled={!hasApk || isRunning}
-            onClick={onRunNextStage}
-          >
-            {isRunning ? "Running Stage..." : "Run Next Stage →"}
-          </button>
-          <button
-            className="btn btn-accent btn-sm"
-            disabled={!hasApk || isRunning}
-            onClick={onRunAllRemaining}
-          >
-            ⚡ Run All Remaining
-          </button>
-        </div>
+        <h2 className="card-title">Static Analysis Lifecycle</h2>
       </div>
 
       <div className="stepper-list">
@@ -44,7 +26,12 @@ export default function PipelineStepper({
             <div
               key={stage.id}
               className={`stepper-item ${statusClass} ${isSelected ? "selected" : ""}`}
-              onClick={() => onSelectStage(index)}
+              onClick={() => {
+                 if(hasApk && stage.status === "completed") {
+                     onSelectStage(index);
+                 }
+              }}
+              style={{ cursor: (hasApk && stage.status === "completed") ? "pointer" : "default" }}
             >
               <div className="stepper-icon">
                 {stage.status === "completed" ? "✓" : stage.status === "running" ? "⏳" : stage.status === "error" ? "✕" : index + 1}

@@ -118,15 +118,11 @@ export async function correlate(apkId) {
 }
 
 /**
- * Stage 8: Generate Forensic Report (PDF & HTML).
+ * Stage 10: Generate Forensic Report (PDF & HTML & JSON).
  */
 export async function generateReport(apkId) {
-  const formData = new FormData();
-  formData.append("apk_id", apkId);
-
-  const response = await fetch(`${API_BASE_URL}/api/report/generate`, {
+  const response = await fetch(`${API_BASE_URL}/api/report/generate/${apkId}`, {
     method: "POST",
-    body: formData,
   });
   return handleResponse(response);
 }
@@ -135,12 +131,33 @@ export async function generateReport(apkId) {
  * Returns direct URL for HTML report view.
  */
 export function getReportViewUrl(apkId) {
-  return `${API_BASE_URL}/api/report/${apkId}/view`;
+  return `${API_BASE_URL}/api/report/view/${apkId}`;
 }
 
 /**
  * Returns direct URL for PDF report download.
  */
 export function getReportDownloadUrl(apkId) {
-  return `${API_BASE_URL}/api/report/${apkId}/download`;
+  return `${API_BASE_URL}/api/report/download/${apkId}?format=pdf`;
+}
+
+/**
+ * Returns direct URL for JSON report download.
+ */
+export function getReportJsonDownloadUrl(apkId) {
+  return `${API_BASE_URL}/api/report/download/${apkId}?format=json`;
+}
+
+/**
+ * Returns direct URL for IOC JSON download.
+ */
+export function getReportIocJsonUrl(apkId) {
+  return `${API_BASE_URL}/api/report/download/${apkId}?format=ioc`;
+}
+
+/**
+ * Returns direct URL for IOC CSV download.
+ */
+export function getReportIocCsvUrl(apkId) {
+  return `${API_BASE_URL}/api/report/download/${apkId}?format=csv`;
 }
