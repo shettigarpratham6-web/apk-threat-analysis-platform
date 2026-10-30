@@ -57,6 +57,10 @@ def test_1_environment():
 
 def test_2_emulator():
     print(f"\n{INFO} TEST 2: Emulator & Root Access")
+    from sandbox.sandbox_manager import SandboxManager
+    sb = SandboxManager()
+    if not sb.is_emulator_running():
+        sb.start_emulator()
     adb = ADBManager()
     info = adb.get_system_info()
     root_res = adb.verify_and_enable_root()
@@ -74,6 +78,10 @@ def test_3_and_4_network_cert():
     cert_hash = "c8750f0d.0"
     cert_path = f"/system/etc/security/cacerts/{cert_hash}"
     res = adb._run_cmd(["shell", "ls", "-l", cert_path]).stdout
+    if cert_hash not in res:
+        from sandbox.cert_installer import CertificateInstaller
+        CertificateInstaller().install()
+        res = adb._run_cmd(["shell", "ls", "-l", cert_path]).stdout
     assert cert_hash in res, f"Certificate {cert_hash} not found in system store: {res}"
     print(f"  - System CA Cert: Verified present at {cert_path}")
     
@@ -91,6 +99,10 @@ def test_3_and_4_network_cert():
 def test_5_frida():
     print(f"\n{INFO} TEST 5: Dynamic Instrumentation (Frida)")
     import frida
+    from sandbox.frida_helper import FridaManager
+    fm = FridaManager()
+    if not fm.is_server_running_on_device():
+        fm.deploy_and_start()
     device = frida.get_usb_device(timeout=10)
     assert device is not None, "Frida USB device connection failed"
     processes = device.enumerate_processes()
@@ -145,13 +157,13 @@ def test_7_8_and_9_dynamic_comparison():
     benign_report = None
     malicious_report = None
     
-    for rpath in reports:
+    for rpath in sorted(reports, reverse=True):
         with open(rpath, "r", encoding="utf-8") as f:
             data = json.load(f)
             pkg = data.get("static_analysis", {}).get("metadata", {}).get("package_name", "")
-            if pkg == "com.defensive.benignapp":
+            if pkg == "com.defensive.benignapp" and benign_report is None:
                 benign_report = data
-            elif pkg == "com.defensive.c2simulator":
+            elif pkg == "com.defensive.c2simulator" and malicious_report is None:
                 malicious_report = data
                 
     assert benign_report is not None, "BenignDemo report not found"

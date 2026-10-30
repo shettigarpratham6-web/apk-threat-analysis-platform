@@ -39,14 +39,10 @@ class C2Detector:
             avg_int = data["avg_interval_seconds"]
             std_dev = data["std_deviation_seconds"]
 
-            # Filter out known Android OS background domains unless they hit explicit C2 URI paths
+            # Filter out known Android OS background domains
             clean_host = host.split(":")[0].lower()
             is_os_domain = any(clean_host == d or clean_host.endswith("." + d) for d in ANDROID_SYSTEM_DOMAINS)
-            has_suspicious_uri_for_host = any(
-                any(kw in f.get("path", "").lower() for kw in C2_URI_KEYWORDS)
-                for f in flows if f.get("host", "").split(":")[0].lower() == clean_host
-            )
-            if is_os_domain and not has_suspicious_uri_for_host:
+            if is_os_domain:
                 continue
 
             # If connected >= 3 times and std dev is low relative to mean, flag beaconing
@@ -71,11 +67,9 @@ class C2Detector:
         for host, count in dest_frequencies.items():
             clean_host = host.split(":")[0].lower()
             is_os_domain = any(clean_host == d or clean_host.endswith("." + d) for d in ANDROID_SYSTEM_DOMAINS)
-            has_suspicious_uri_for_host = any(
-                any(kw in f.get("path", "").lower() for kw in C2_URI_KEYWORDS)
-                for f in flows if f.get("host", "").split(":")[0].lower() == clean_host
-            )
-            if count >= 8 and (not is_os_domain or has_suspicious_uri_for_host):
+            if is_os_domain:
+                continue
+            if count >= 8:
                 rule_score = 20
                 score += rule_score
                 indicators.append({
@@ -127,6 +121,10 @@ class C2Detector:
         # Rule 5: Suspicious C2 URI Patterns
         flagged_uris = []
         for f in flows:
+            clean_host = f.get("host", "").split(":")[0].lower()
+            is_os_domain = any(clean_host == d or clean_host.endswith("." + d) for d in ANDROID_SYSTEM_DOMAINS)
+            if is_os_domain:
+                continue
             path = f.get("path", "").lower()
             for kw in C2_URI_KEYWORDS:
                 if kw in path:

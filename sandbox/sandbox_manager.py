@@ -82,7 +82,10 @@ class SandboxManager:
             "-no-snapshot",
             "-no-audio"
         ]
-        self.emulator_proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        flags = 0
+        if sys.platform == "win32":
+            flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+        self.emulator_proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
         return self.wait_for_boot()
 
     def wait_for_boot(self, timeout: int = 120) -> bool:
@@ -99,9 +102,17 @@ class SandboxManager:
             val = f"10.0.2.2:{self.proxy_port}"
             print(f"{Fore.CYAN}[*] Setting Android global proxy to {val}...{Style.RESET_ALL}")
             subprocess.run([self.adb_bin, "shell", f"settings put global http_proxy {val}"], check=True)
+            # Cycle network interface to force immediate proxy application
+            subprocess.run([self.adb_bin, "shell", "cmd connectivity airplane-mode enable"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(1)
+            subprocess.run([self.adb_bin, "shell", "cmd connectivity airplane-mode disable"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(1)
         else:
             print(f"{Fore.CYAN}[*] Resetting Android global proxy...{Style.RESET_ALL}")
             subprocess.run([self.adb_bin, "shell", "settings put global http_proxy :0"], check=True)
+            subprocess.run([self.adb_bin, "shell", "cmd connectivity airplane-mode enable"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(1)
+            subprocess.run([self.adb_bin, "shell", "cmd connectivity airplane-mode disable"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
 
     def install_certificate(self) -> bool:
@@ -191,7 +202,6 @@ class SandboxManager:
             raise RuntimeError("ADB root access is unavailable on the target emulator.")
         
         self.install_certificate()
-        self.configure_proxy(enable=True)
         if not self.start_frida():
             raise RuntimeError("Failed to connect to Frida server on Android emulator.")
 
@@ -201,6 +211,7 @@ class SandboxManager:
         frida_log_path = os.path.join("logs", "frida", f"{session_id}.log")
 
         self.start_mitmproxy(flow_path)
+        self.configure_proxy(enable=True)
         self.start_logcat(logcat_path)
 
         # Stage 4: Install Target Application
@@ -241,7 +252,11 @@ class SandboxManager:
             print(f"{Fore.GREEN}[+] Target app spawned with PID {pid} under Frida supervision.{Style.RESET_ALL}")
         except Exception as e:
             print(f"{Fore.YELLOW}[!] Frida spawn failed ({e}). Attempting am start fallback...{Style.RESET_ALL}")
-            subprocess.run([self.adb_bin, "shell", f"monkey -p {package_name} -c android.intent.category.LAUNCHER 1"], stdout=subprocess.DEVNULL)
+            main_activity = static_data.get("metadata", {}).get("main_activity")
+            if main_activity and main_activity != "UNKNOWN":
+                subprocess.run([self.adb_bin, "shell", f"am start -n {package_name}/{main_activity}"], stdout=subprocess.DEVNULL)
+            else:
+                subprocess.run([self.adb_bin, "shell", f"monkey -p {package_name} -c android.intent.category.LAUNCHER 1"], stdout=subprocess.DEVNULL)
             time.sleep(2)
             try:
                 session = device.attach(package_name)

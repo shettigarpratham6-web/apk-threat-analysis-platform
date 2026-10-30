@@ -106,6 +106,8 @@ class ADBManager:
 
         if is_root:
             print(f"{Fore.GREEN}[+] Root access confirmed: {id_output}{Style.RESET_ALL}")
+            # Ensure SELinux is set to Permissive for Frida dynamic instrumentation
+            self._run_cmd(["shell", "setenforce", "0"])
         else:
             print(f"{Fore.YELLOW}[!] Root access not available: {id_output}{Style.RESET_ALL}")
 
