@@ -4,9 +4,10 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 import uuid
 from typing import Optional
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Body, File, Form, HTTPException, Response, UploadFile, status
 
 from backend.app.dynamic_analysis.sandbox_manager import SandboxManager
 
@@ -325,5 +326,133 @@ async def check_servers_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred during suspicious server lookup: {str(err)}",
         )
+
+
+@router.get("/screen/current")
+async def get_current_device_screen():
+    """
+    Captures live screenshot from the running Android emulator via ADB screencap.
+    Returns image/png bytes for live rendering in the virtual mobile device widget.
+    """
+    if not sandbox.is_emulator_ready():
+        raise HTTPException(status_code=503, detail="Emulator device is currently offline.")
+
+    try:
+        proc = subprocess.run(
+            [sandbox.adb_path, "exec-out", "screencap", "-p"],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        if proc.returncode == 0 and len(proc.stdout) > 100:
+            return Response(
+                content=proc.stdout,
+                media_type="image/png",
+                headers={
+                    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                    "Pragma": "no-cache",
+                },
+            )
+        else:
+            raise HTTPException(status_code=500, detail="Failed to capture screen image.")
+    except Exception as exc:
+        logger.error(f"Error capturing device screencap: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/screen/touch")
+async def send_device_touch(
+    action: str = Body("tap"),
+    x: Optional[float] = Body(None),
+    y: Optional[float] = Body(None),
+    key_code: Optional[str] = Body(None),
+    text: Optional[str] = Body(None),
+):
+    """
+    Simulates real-time touch, key, or text input on the Android emulator.
+    Allows user to interact with the fake mobile phone live in the browser.
+    """
+    if not sandbox.is_emulator_ready():
+        raise HTTPException(status_code=503, detail="Emulator device is currently offline.")
+
+    try:
+        if action == "tap" and x is not None and y is not None:
+            width, height = 1080, 2220
+            try:
+                res = subprocess.run([sandbox.adb_path, "shell", "wm", "size"], capture_output=True, text=True, check=False)
+                if "Physical size:" in res.stdout:
+                    parts = res.stdout.split("Physical size:")[-1].strip().split("x")
+                    width, height = int(parts[0]), int(parts[1])
+            except Exception:
+                pass
+
+            real_x = int(x * width)
+            real_y = int(y * height)
+            subprocess.run([sandbox.adb_path, "shell", "input", "tap", str(real_x), str(real_y)], check=False)
+            return {"status": "ok", "action": "tap", "coordinates": {"x": real_x, "y": real_y}}
+
+        elif action == "key" and key_code:
+            subprocess.run([sandbox.adb_path, "shell", "input", "keyevent", str(key_code)], check=False)
+            return {"status": "ok", "action": "key", "key_code": key_code}
+
+        elif action == "text" and text:
+            subprocess.run([sandbox.adb_path, "shell", "input", "text", str(text)], check=False)
+            return {"status": "ok", "action": "text"}
+
+        return {"status": "ignored"}
+    except Exception as exc:
+        logger.error(f"Error sending input event: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/screen/info")
+async def get_device_info():
+    """
+    Returns real-time status, focused app package, and screen info of the virtual phone.
+    """
+    online = sandbox.is_emulator_ready()
+    if not online:
+        return {
+            "online": False,
+            "device": None,
+            "current_app": None,
+            "avd_name": sandbox.avd_name,
+        }
+
+    current_app = "Home Screen"
+    try:
+        res = subprocess.run(
+            [sandbox.adb_path, "shell", "dumpsys", "window"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=3,
+        )
+        for line in res.stdout.splitlines():
+            if "mCurrentFocus=" in line:
+                parts = line.split("mCurrentFocus=")[-1].strip()
+                if "/" in parts:
+                    current_app = parts.split("/")[0].split()[-1]
+                break
+    except Exception:
+        pass
+
+    return {
+        "online": True,
+        "device": "emulator-5554",
+        "avd_name": sandbox.avd_name,
+        "current_app": current_app,
+        "screen_resolution": "1080x2220",
+    }
+
+
+@router.post("/sandbox/wake")
+async def wake_sandbox_device():
+    """Wakes the phone screen and sends menu unlock."""
+    if sandbox.is_emulator_ready():
+        subprocess.run([sandbox.adb_path, "shell", "input", "keyevent", "26"], check=False)
+        subprocess.run([sandbox.adb_path, "shell", "input", "keyevent", "82"], check=False)
+        return {"status": "ok", "message": "Device screen awakened and unlocked."}
+    return {"status": "offline", "message": "Device offline"}
 
 

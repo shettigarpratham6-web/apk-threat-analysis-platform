@@ -3,7 +3,9 @@
 import json
 import logging
 import os
+import shutil
 import subprocess
+import sys
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("network_monitor")
@@ -31,8 +33,16 @@ class NetworkMonitor:
         # Ensure target log output directory exists
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
 
+        mitmdump_exe = shutil.which("mitmdump")
+        if not mitmdump_exe:
+            cand = os.path.join(os.path.dirname(sys.executable), "mitmdump.exe")
+            if os.path.exists(cand):
+                mitmdump_exe = cand
+            else:
+                mitmdump_exe = "mitmdump"
+
         cmd = [
-            "mitmdump",
+            mitmdump_exe,
             "-s",
             self.addon_script_path,
             "--set",

@@ -1,5 +1,6 @@
 """FastAPI router for static analysis endpoints."""
 
+import concurrent.futures
 import json
 import os
 import shutil
@@ -46,7 +47,7 @@ async def upload_and_analyze_apk(file: UploadFile = File(...)):
     upload_dir = os.path.join(UPLOADS_DIR, apk_id)
     os.makedirs(upload_dir, exist_ok=True)
     
-    file_path = os.path.join(upload_dir, "original.apk")
+    file_path = os.path.join(UPLOADS_DIR, f"{apk_id}.apk")
     
     try:
         with open(file_path, "wb") as buffer:
@@ -90,7 +91,7 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
     os.makedirs(upload_dir, exist_ok=True)
     os.makedirs(RESULTS_DIR, exist_ok=True)
     
-    file_path = os.path.join(upload_dir, "original.apk")
+    file_path = os.path.join(UPLOADS_DIR, f"{apk_id}.apk")
     extract_dir = os.path.join(upload_dir, "extracted")
     
     try:
@@ -128,27 +129,25 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
                 logger.error(f"Scanner {func.__name__} failed: {e}")
                 return {"error": str(e), **default_ret}
 
-        # 3. AndroidManifest.xml Analysis
-        manifest_results = safe_run(analyze_manifest, apk_obj)
-        
-        # 4. Certificate Scanning
-        cert_results = safe_run(scan_certificates, file_path, default_ret=[])
-        if isinstance(cert_results, dict) and "error" in cert_results:
-            cert_results = []
-            
-        # 5. DEX Code Analysis (Jadx/Apktool + Entropy)
-        code_results = safe_run(analyze_code, file_path)
-        
-        # 6. Resource Analysis (Secrets)
-        resource_results = safe_run(analyze_resources, extract_dir)
-        
-        # 7. Native Library Analysis
-        native_results = safe_run(analyze_native_libs, extract_dir)
-        
-        # 8. YARA Signature Scanner
-        yara_results = safe_run(run_yara_scan, extract_dir, default_ret=[])
-        if isinstance(yara_results, dict) and "error" in yara_results:
-            yara_results = []
+        # Concurrently execute independent static analysis phases (Phases 3-8) via ThreadPoolExecutor
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            fut_manifest = executor.submit(safe_run, analyze_manifest, apk_obj)
+            fut_cert = executor.submit(safe_run, scan_certificates, file_path, default_ret=[])
+            fut_code = executor.submit(safe_run, analyze_code, file_path)
+            fut_res = executor.submit(safe_run, analyze_resources, extract_dir)
+            fut_native = executor.submit(safe_run, analyze_native_libs, extract_dir)
+            fut_yara = executor.submit(safe_run, run_yara_scan, extract_dir, default_ret=[])
+
+            manifest_results = fut_manifest.result()
+            cert_results = fut_cert.result()
+            if isinstance(cert_results, dict) and "error" in cert_results:
+                cert_results = []
+            code_results = fut_code.result()
+            resource_results = fut_res.result()
+            native_results = fut_native.result()
+            yara_results = fut_yara.result()
+            if isinstance(yara_results, dict) and "error" in yara_results:
+                yara_results = []
             
         # 9. Static Feature Vector Extraction & Random Forest ML Classification
         ml_clf = get_static_malware_classifier()
@@ -218,8 +217,8 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
         # Cleanup temporary extracted files to prevent disk exhaustion
         if os.path.exists(extract_dir):
             shutil.rmtree(extract_dir, ignore_errors=True)
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        if os.path.exists(upload_dir) and not os.listdir(upload_dir):
+            shutil.rmtree(upload_dir, ignore_errors=True)
 
 
 @router.post("/codebert-similarity")

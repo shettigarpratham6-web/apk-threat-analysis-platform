@@ -77,6 +77,7 @@ def detect_c2(
 
         # Heuristic C: Beaconing pattern (regular time intervals between requests)
         timestamps = sorted([e.get("timestamp", 0) for e in entries if e.get("timestamp")])
+        detected_interval = None
         if len(timestamps) >= 3:
             intervals = [timestamps[i + 1] - timestamps[i] for i in range(len(timestamps) - 1)]
             avg_interval = sum(intervals) / len(intervals)
@@ -84,11 +85,13 @@ def detect_c2(
                 variance = sum((x - avg_interval) ** 2 for x in intervals) / len(intervals)
                 std_dev = math.sqrt(variance)
                 if (std_dev / max(avg_interval, 0.001) < 0.35) and (0.5 <= avg_interval <= 300):
-                    reasons.append(f"Beaconing pattern detected (regular request interval ~{avg_interval:.1f}s)")
+                    detected_interval = round(avg_interval, 2)
+                    reasons.append(f"Beaconing pattern detected (regular request interval ~{detected_interval}s)")
         elif len(timestamps) == 2:
             gap = timestamps[1] - timestamps[0]
             if 0.5 <= gap <= 60:
-                reasons.append(f"Repeated sequential requests with short gap ({gap:.1f}s)")
+                detected_interval = round(gap, 2)
+                reasons.append(f"Repeated sequential requests with short gap ({detected_interval}s)")
 
         # Heuristic D: Small fixed-size POST payloads (beacon check-in)
         post_entries = [e for e in entries if str(e.get("method")).upper() == "POST"]
@@ -112,10 +115,22 @@ def detect_c2(
             elif score >= 3:
                 confidence = "high"
 
+            # Structure deep forensic evidence
+            evidence = {
+                "requests_count": len(entries),
+                "methods": sorted(list({str(e.get("method", "GET")).upper() for e in entries if e.get("method")})),
+                "ports": sorted(list({e.get("port") for e in entries if e.get("port")})),
+                "sample_urls": [e.get("url") for e in entries[:4] if e.get("url")],
+                "sample_paths": list({e.get("path") for e in entries[:5] if e.get("path")}),
+                "beacon_interval_seconds": detected_interval,
+                "total_bytes_transferred": sum((e.get("request_size") or 0) + (e.get("response_size") or 0) for e in entries),
+            }
+
             suspected_c2_hosts.append({
                 "host": host,
                 "reasons": reasons,
                 "confidence": confidence,
+                "evidence": evidence,
             })
             raw_flagged_traffic.extend(entries)
 
@@ -138,6 +153,11 @@ def detect_c2(
             "host": host,
             "reasons": reasons,
             "confidence": confidence,
+            "evidence": {
+                "requests_count": 0,
+                "status": "Dormant / Static-Only",
+                "source": "Decompiled Bytecode Asset"
+            },
         })
 
     # Sort suspected C2 hosts by confidence level

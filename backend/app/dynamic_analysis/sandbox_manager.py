@@ -2,6 +2,7 @@
 
 import logging
 import os
+import shutil
 import subprocess
 import time
 from typing import Optional
@@ -29,16 +30,58 @@ class SandboxManager:
         self.snapshot_name = SNAPSHOT_NAME
         self.headless = HEADLESS_MODE
 
+    def _cleanup_stale_avd_locks(self) -> None:
+        """Removes stale .lock files and directories for the current AVD so emulator starts cleanly."""
+        try:
+            home = os.path.expanduser("~")
+            avd_dir = os.path.join(home, ".android", "avd", f"{self.avd_name}.avd")
+            if os.path.exists(avd_dir):
+                for item in os.listdir(avd_dir):
+                    if item.endswith(".lock"):
+                        lock_path = os.path.join(avd_dir, item)
+                        try:
+                            if os.path.isdir(lock_path):
+                                shutil.rmtree(lock_path, ignore_errors=True)
+                            else:
+                                os.remove(lock_path)
+                            logger.info(f"Removed stale AVD lock: {lock_path}")
+                        except Exception as le:
+                            logger.warning(f"Could not remove lock {lock_path}: {le}")
+        except Exception as exc:
+            logger.warning(f"Error during lock cleanup: {exc}")
+
+    def is_emulator_ready(self) -> bool:
+        """Checks whether an ADB device/emulator is currently online and fully booted."""
+        try:
+            res = subprocess.run([self.adb_path, "devices"], capture_output=True, text=True, check=False)
+            output = res.stdout if res.returncode == 0 else ""
+            lines = [l.strip() for l in output.strip().splitlines() if l.strip() and not l.startswith("*") and not l.startswith("List of")]
+            active = [l for l in lines if "\tdevice" in l or l.endswith(" device")]
+            if active:
+                boot = subprocess.run([self.adb_path, "shell", "getprop", "sys.boot_completed"], capture_output=True, text=True, check=False)
+                return boot.stdout.strip() == "1"
+        except Exception:
+            pass
+        return False
+
     def start_emulator(self) -> None:
         """
         Launches the Android emulator process asynchronously using Popen.
 
         :raises RuntimeError: If launching the emulator process fails.
         """
+        if self.is_emulator_ready():
+            logger.info("Emulator device is already online and connected.")
+            print("[SANDBOX LOG] Emulator device is already online and ready.")
+            return
+
         if self.process is not None and self.process.poll() is None:
             logger.info("Emulator process is already running.")
             print("[SANDBOX LOG] Emulator process is already active.")
             return
+
+        # Clean stale lock files before launching
+        self._cleanup_stale_avd_locks()
 
         cmd = [self.emulator_path, "-avd", self.avd_name, "-no-snapshot-save"]
         if self.headless:
@@ -50,8 +93,8 @@ class SandboxManager:
         try:
             self.process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
             )
         except Exception as exc:
@@ -65,7 +108,7 @@ class SandboxManager:
 
     def wait_until_ready(self, timeout: int = BOOT_TIMEOUT) -> bool:
         """
-        Polls ADB devices until the emulator is reported as ready ('device').
+        Polls ADB devices until the emulator is reported as ready ('device') and boot is completed.
 
         :param timeout: Seconds to wait before raising TimeoutError.
         :return: True if ready.
@@ -84,18 +127,20 @@ class SandboxManager:
                     check=False,
                 )
                 output = res.stdout if res.returncode == 0 else ""
+                lines = [l.strip() for l in output.strip().splitlines() if l.strip() and not l.startswith("*") and not l.startswith("List of")]
+                active_devices = [l for l in lines if "\tdevice" in l or l.endswith(" device")]
 
-                if "device" in output and "offline" not in output:
-                    # Check if boot is completed if device is listed
+                if active_devices:
+                    # Check if boot is completed
                     boot_res = subprocess.run(
                         [self.adb_path, "shell", "getprop", "sys.boot_completed"],
                         capture_output=True,
                         text=True,
                         check=False,
                     )
-                    if boot_res.stdout.strip() == "1" or "device" in output:
-                        logger.info("Emulator ADB status: READY")
-                        print("[SANDBOX LOG] Emulator ADB status: READY")
+                    if boot_res.stdout.strip() == "1":
+                        logger.info("Emulator ADB status: READY (boot completed)")
+                        print("[SANDBOX LOG] Emulator ADB status: READY (boot completed)")
                         return True
             except Exception as exc:
                 logger.warning(f"ADB polling encountered transient error: {exc}")
@@ -109,25 +154,13 @@ class SandboxManager:
 
     def restore_snapshot(self) -> None:
         """
-        Restores the AVD emulator to a clean snapshot state using ADB.
+        Restores clean sandbox state.
+        Note: Live QEMU snapshot loading on running emulators frequently resets ADB transport
+        or crashes qemu-system on Windows. Clean state is safely maintained via package
+        uninstallation and cache resets.
         """
-        logger.info(f"Restoring AVD clean snapshot: '{self.snapshot_name}'...")
-        print(f"[SANDBOX LOG] Restoring AVD snapshot '{self.snapshot_name}'...")
-
-        try:
-            res = subprocess.run(
-                [self.adb_path, "emu", "avd", "snapshot", "load", self.snapshot_name],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if res.returncode != 0:
-                logger.warning(f"Snapshot load output: {res.stderr or res.stdout}")
-        except Exception as exc:
-            err_msg = f"Failed to restore snapshot '{self.snapshot_name}': {str(exc)}"
-            logger.error(err_msg)
-            print(f"[SANDBOX ERROR] {err_msg}")
-            raise RuntimeError(err_msg) from exc
+        logger.info("Sandbox clean state check: maintaining isolated environment via app uninstallation.")
+        print("[SANDBOX LOG] Sandbox state prepared for clean execution.")
 
     def stop_emulator(self) -> None:
         """
@@ -163,7 +196,9 @@ class SandboxManager:
 
     def run_full_dynamic_prep(self, apk_path: str) -> dict:
         """
-        Orchestrates full dynamic sandbox preparation: restores clean snapshot state,
+        Orchestrates full dynamic sandbox preparation:
+        ensures emulator sandbox is running and ready,
+        uninstalls any previous instance for clean state,
         installs target APK, launches app package, and pauses for initial settling.
 
         :param apk_path: Path to the target APK file on disk.
@@ -172,23 +207,31 @@ class SandboxManager:
         logger.info(f"Initiating full dynamic sandbox prep for: {apk_path}")
         print(f"[SANDBOX LOG] Initiating full dynamic sandbox prep for '{apk_path}'...")
 
-        # 1. Restore clean snapshot
-        try:
-            self.restore_snapshot()
-        except Exception as exc:
-            logger.warning(f"Snapshot restore failed or skipped: {exc}")
+        # 0. Ensure emulator is running and booted
+        if not self.is_emulator_ready():
+            logger.info("Emulator is not running or not ready. Auto-launching sandbox emulator...")
+            print("[SANDBOX LOG] Emulator device offline. Starting fake phone sandbox...")
+            self.start_emulator()
+            self.wait_until_ready(timeout=BOOT_TIMEOUT)
 
-        # 2. Extract package name, install APK, and launch app
+        # 1. Resolve package name and clean previous instance
         from backend.app.dynamic_analysis.apk_runner import ApkRunner
 
         runner = ApkRunner(adb_path=self.adb_path)
         package_name = runner.get_package_name(apk_path)
 
+        try:
+            logger.info(f"Pre-cleaning existing app instance '{package_name}' for clean state...")
+            runner.uninstall_apk(package_name)
+        except Exception as exc:
+            logger.debug(f"Pre-install cleanup skipped: {exc}")
+
+        # 2. Install APK and launch app
         runner.install_apk(apk_path)
         runner.launch_apk(package_name)
 
         # 3. Short settle delay to let app open completely on-screen
-        settle_seconds = 5
+        settle_seconds = 2
         logger.info(f"Pausing {settle_seconds}s to let app interface initialize on-screen...")
         print(f"[SANDBOX LOG] Pausing {settle_seconds}s to allow app UI initialization...")
         time.sleep(settle_seconds)

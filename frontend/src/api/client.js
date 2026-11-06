@@ -20,6 +20,28 @@ async function handleResponse(response) {
 }
 
 /**
+ * Health check endpoint.
+ */
+export async function checkSystemHealth() {
+  const response = await fetch(`${API_BASE_URL}/health`);
+  return handleResponse(response);
+}
+
+/**
+ * Upload APK without running full static analysis immediately (for dynamic run).
+ */
+export async function uploadApk(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE_URL}/api/static-analysis/upload`, {
+    method: "POST",
+    body: formData,
+  });
+  return handleResponse(response);
+}
+
+/**
  * Stage 1: Upload APK and execute static analysis pipeline.
  */
 export async function uploadAndAnalyzeStatic(file) {
@@ -44,6 +66,16 @@ export async function startSandbox() {
 }
 
 /**
+ * Stop Sandbox Emulator.
+ */
+export async function stopSandbox() {
+  const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/sandbox/stop`, {
+    method: "POST",
+  });
+  return handleResponse(response);
+}
+
+/**
  * Stage 3: Install & Run APK in Sandbox.
  */
 export async function runApk(apkId) {
@@ -60,7 +92,7 @@ export async function runApk(apkId) {
 /**
  * Stage 4: Monitor Dynamic Behavior (mitmproxy + Frida).
  */
-export async function monitorBehavior(apkId, packageName, duration = 10) {
+export async function monitorBehavior(apkId, packageName, duration = 15) {
   const formData = new FormData();
   formData.append("apk_id", apkId);
   if (packageName) {
@@ -160,4 +192,41 @@ export function getReportIocJsonUrl(apkId) {
  */
 export function getReportIocCsvUrl(apkId) {
   return `${API_BASE_URL}/api/report/download/${apkId}?format=csv`;
+}
+
+/**
+ * Returns direct URL to fetch live screen frame from the emulator.
+ */
+export function getDeviceScreenUrl() {
+  return `${API_BASE_URL}/api/dynamic-analysis/screen/current?_t=${Date.now()}`;
+}
+
+/**
+ * Fetches real-time status and active app of the virtual phone.
+ */
+export async function getDeviceInfo() {
+  const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/screen/info`);
+  return handleResponse(response);
+}
+
+/**
+ * Sends a tap, key, or text interaction to the virtual phone.
+ */
+export async function sendDeviceTouch(payload) {
+  const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/screen/touch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(response);
+}
+
+/**
+ * Wakes and unlocks the virtual phone.
+ */
+export async function wakeDevice() {
+  const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/sandbox/wake`, {
+    method: "POST",
+  });
+  return handleResponse(response);
 }

@@ -238,7 +238,9 @@ def test_c2_detect_endpoint(tmp_path):
                 os.remove(p)
 
 
-def test_server_reputation_checks():
+def test_server_reputation_checks(monkeypatch):
+    monkeypatch.delenv("ABUSEIPDB_API_KEY", raising=False)
+    monkeypatch.delenv("VIRUSTOTAL_API_KEY", raising=False)
     from backend.app.dynamic_analysis.server_reputation import (
         check_ip_reputation,
         check_domain_reputation,

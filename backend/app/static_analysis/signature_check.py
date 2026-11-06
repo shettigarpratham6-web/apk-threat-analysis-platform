@@ -1,11 +1,18 @@
 """Phase 8: YARA Signature Engine"""
 import os
-import yara
+try:
+    import yara
+except ImportError:
+    yara = None
 from typing import Dict, Any, List
 from loguru import logger
 
 def get_compiled_rules():
     """Compiles all YARA rules from the yara_rules directory."""
+    if yara is None:
+        logger.warning("yara-python is not installed. Skipping YARA signature compilation.")
+        return None
+        
     rules_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "yara_rules"))
     filepaths = {}
     
@@ -19,9 +26,8 @@ def get_compiled_rules():
         
     try:
         return yara.compile(filepaths=filepaths)
-    except yara.Error as e:
+    except Exception as e:
         logger.error(f"Failed to compile some YARA rules: {e}")
-        # Could fallback to compiling one by one and ignoring errors, but let's compile what we can
         return None
 
 def run_yara_scan(extracted_dir: str) -> List[Dict[str, Any]]:

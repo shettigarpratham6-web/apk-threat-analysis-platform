@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-export default function UploadPanel({ onUpload, isRunning }) {
+export default function UploadPanel({ onUpload, onDynamicUpload, isRunning }) {
   const [selectedFile, setSelectedFile] = useState(null);
 
   const handleFileChange = (e) => {
@@ -15,6 +15,12 @@ export default function UploadPanel({ onUpload, isRunning }) {
     }
   };
 
+  const handleDynamic = () => {
+    if (selectedFile && onDynamicUpload) {
+      onDynamicUpload(selectedFile);
+    }
+  };
+
   return (
     <div className="card upload-card">
       <div className="card-header">
@@ -22,7 +28,7 @@ export default function UploadPanel({ onUpload, isRunning }) {
         <span className="card-badge">Stage 1</span>
       </div>
       <p className="card-desc">
-        Select an Android APK file to upload and execute the automated static analysis pipeline.
+        Select an Android APK file to inspect via static decompilation or launch live inside the fake phone sandbox.
       </p>
 
       <div className="upload-controls">
@@ -44,13 +50,25 @@ export default function UploadPanel({ onUpload, isRunning }) {
           </div>
         )}
 
-        <button
-          onClick={handleUpload}
-          disabled={!selectedFile || isRunning}
-          className="btn btn-primary"
-        >
-          {isRunning ? "Pipeline Running..." : "Start Pipeline Analysis"}
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px", width: "100%" }}>
+          <button
+            onClick={handleUpload}
+            disabled={!selectedFile || isRunning}
+            className="btn btn-primary"
+            style={{ width: "100%", justifyContent: "center" }}
+          >
+            {isRunning ? "Pipeline Running..." : "🔍 Run Static Decompilation"}
+          </button>
+
+          <button
+            onClick={handleDynamic}
+            disabled={!selectedFile || isRunning}
+            className="btn btn-secondary"
+            style={{ width: "100%", justifyContent: "center", background: "#7c3aed", color: "#ffffff", border: "none" }}
+          >
+            🚀 Launch in Fake Phone Sandbox
+          </button>
+        </div>
       </div>
     </div>
   );
