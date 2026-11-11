@@ -5,7 +5,7 @@ import os
 import shutil
 import subprocess
 import time
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from sandbox.emulator_config import (
     ADB_PATH,
@@ -20,7 +20,9 @@ logger = logging.getLogger("sandbox_manager")
 
 
 class SandboxManager:
-    """Manages spawning, readiness polling, snapshot restoring, and stopping the Android Emulator."""
+    """Manages spawning, readiness polling, snapshot restoring, proxy routing,
+    CA certificate installation, and stopping the Android Emulator.
+    """
 
     def __init__(self):
         self.process: Optional[subprocess.Popen] = None
@@ -29,6 +31,8 @@ class SandboxManager:
         self.avd_name = AVD_NAME
         self.snapshot_name = SNAPSHOT_NAME
         self.headless = HEADLESS_MODE
+        self._ready_cache_val: bool = False
+        self._ready_cache_time: float = 0.0
 
     def _cleanup_stale_avd_locks(self) -> None:
         """Removes stale .lock files and directories for the current AVD so emulator starts cleanly."""
@@ -50,19 +54,27 @@ class SandboxManager:
         except Exception as exc:
             logger.warning(f"Error during lock cleanup: {exc}")
 
-    def is_emulator_ready(self) -> bool:
-        """Checks whether an ADB device/emulator is currently online and fully booted."""
+    def is_emulator_ready(self, force: bool = False) -> bool:
+        """Checks whether an ADB device/emulator is currently online and fully booted, with a 2s TTL cache."""
+        now = time.time()
+        if not force and (now - self._ready_cache_time < 2.0):
+            return self._ready_cache_val
+
+        ready = False
         try:
-            res = subprocess.run([self.adb_path, "devices"], capture_output=True, text=True, check=False)
+            res = subprocess.run([self.adb_path, "devices"], capture_output=True, text=True, check=False, timeout=3)
             output = res.stdout if res.returncode == 0 else ""
             lines = [l.strip() for l in output.strip().splitlines() if l.strip() and not l.startswith("*") and not l.startswith("List of")]
             active = [l for l in lines if "\tdevice" in l or l.endswith(" device")]
             if active:
-                boot = subprocess.run([self.adb_path, "shell", "getprop", "sys.boot_completed"], capture_output=True, text=True, check=False)
-                return boot.stdout.strip() == "1"
+                boot = subprocess.run([self.adb_path, "shell", "getprop", "sys.boot_completed"], capture_output=True, text=True, check=False, timeout=3)
+                ready = (boot.stdout.strip() == "1")
         except Exception:
-            pass
-        return False
+            ready = False
+
+        self._ready_cache_val = ready
+        self._ready_cache_time = now
+        return ready
 
     def start_emulator(self) -> None:
         """
@@ -154,13 +166,138 @@ class SandboxManager:
 
     def restore_snapshot(self) -> None:
         """
-        Restores clean sandbox state.
-        Note: Live QEMU snapshot loading on running emulators frequently resets ADB transport
-        or crashes qemu-system on Windows. Clean state is safely maintained via package
-        uninstallation and cache resets.
+        Restores clean sandbox state via package uninstallation and state resets.
         """
         logger.info("Sandbox clean state check: maintaining isolated environment via app uninstallation.")
         print("[SANDBOX LOG] Sandbox state prepared for clean execution.")
+
+    def ensure_ca_cert_installed(self) -> bool:
+        """
+        Installs the mitmproxy CA certificate into Android emulator system store (/system/etc/security/cacerts/)
+        using a tmpfs overlay mount to ensure transparent HTTPS interception without modifying host images permanently.
+        """
+        cert_hash = "c8750f0d"
+        cert_filename = f"{cert_hash}.0"
+
+        # Check if already installed
+        try:
+            check_res = subprocess.run(
+                [self.adb_path, "shell", f"[ -f /system/etc/security/cacerts/{cert_filename} ] && echo exists"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            if "exists" in check_res.stdout:
+                logger.info(f"System CA certificate {cert_filename} is already installed in emulator.")
+                return True
+        except Exception:
+            pass
+
+        # Locate host certificate file
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        local_candidates = [
+            os.path.join(base_dir, "tools", cert_filename),
+            os.path.join(base_dir, "sandbox", "mitmproxy_config", cert_filename),
+        ]
+        local_cert = next((p for p in local_candidates if os.path.exists(p)), None)
+        if not local_cert:
+            logger.info("Pre-computed system CA certificate not found; skipping overlay push.")
+            return False
+
+        logger.info(f"Installing system CA certificate ({cert_filename}) into Android system store via tmpfs overlay...")
+        try:
+            subprocess.run([self.adb_path, "root"], capture_output=True, text=True, check=False)
+            time.sleep(1)
+
+            # Setup tmpfs overlay on /system/etc/security/cacerts
+            setup_script = (
+                "mkdir -p /data/local/tmp/cacerts_backup && "
+                "cp /system/etc/security/cacerts/* /data/local/tmp/cacerts_backup/ 2>/dev/null && "
+                "mount -t tmpfs tmpfs /system/etc/security/cacerts && "
+                "cp /data/local/tmp/cacerts_backup/* /system/etc/security/cacerts/"
+            )
+            subprocess.run([self.adb_path, "shell", setup_script], capture_output=True, text=True, check=False)
+
+            dest_android = f"/system/etc/security/cacerts/{cert_filename}"
+            subprocess.run([self.adb_path, "push", local_cert, dest_android], capture_output=True, text=True, check=False)
+            subprocess.run([self.adb_path, "shell", f"chmod 644 {dest_android}"], capture_output=True, text=True, check=False)
+            subprocess.run([self.adb_path, "shell", f"chown root:root {dest_android}"], capture_output=True, text=True, check=False)
+            subprocess.run([self.adb_path, "shell", f"chcon u:object_r:system_file:s0 {dest_android}"], capture_output=True, text=True, check=False)
+
+            logger.info(f"Successfully installed CA certificate {cert_filename} in emulator.")
+            print(f"[NETWORK LOG] Installed mitmproxy CA certificate {cert_filename} into emulator cacerts.")
+            return True
+        except Exception as exc:
+            logger.warning(f"Could not install system CA certificate: {exc}")
+            return False
+
+    def collect_logcat_summary(self, package_name: str, max_lines: int = 250) -> Dict[str, Any]:
+        """
+        Extracts recent Logcat lines and filters for crashes, security exceptions,
+        and permission denials associated with the app package.
+        """
+        crashes: List[str] = []
+        security_exceptions: List[str] = []
+        permission_denials: List[str] = []
+        raw_events: List[str] = []
+
+        try:
+            proc = subprocess.run(
+                [self.adb_path, "logcat", "-d", "-v", "time"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=6,
+            )
+            lines = proc.stdout.splitlines()[-max_lines:] if proc.returncode == 0 else []
+
+            for line in lines:
+                lower = line.lower()
+                if "fatal exception" in lower or "androidruntime" in lower or "crash" in lower:
+                    crashes.append(line.strip())
+                elif "securityexception" in lower:
+                    security_exceptions.append(line.strip())
+                elif "permission denial" in lower or "denied" in lower:
+                    permission_denials.append(line.strip())
+                elif package_name.lower() in lower:
+                    raw_events.append(line.strip())
+
+        except Exception as exc:
+            logger.warning(f"Could not dump Logcat: {exc}")
+
+        return {
+            "total_lines_analyzed": len(lines) if "lines" in locals() else 0,
+            "crashes_detected": len(crashes),
+            "crash_samples": crashes[:5],
+            "security_exceptions_count": len(security_exceptions),
+            "security_exception_samples": security_exceptions[:5],
+            "permission_denials_count": len(permission_denials),
+            "permission_denial_samples": permission_denials[:5],
+            "app_related_events": raw_events[:20],
+        }
+
+    def run_ui_exploration(self, package_name: str, event_count: int = 30) -> None:
+        """
+        Executes lightweight, controlled automated UI exploration via Android Monkey
+        to exercise application code paths and trigger runtime payload execution.
+        """
+        try:
+            logger.info(f"Running automated UI exploration ({event_count} events) on {package_name}...")
+            print(f"[SANDBOX LOG] Exercising app interface via automated user flows ({event_count} events)...")
+            cmd = [
+                self.adb_path, "shell", "monkey",
+                "-p", package_name,
+                "--pct-touch", "60",
+                "--pct-motion", "20",
+                "--pct-appswitch", "10",
+                "--ignore-crashes",
+                "--ignore-timeouts",
+                str(event_count),
+            ]
+            subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=8)
+        except Exception as exc:
+            logger.debug(f"UI exploration ended: {exc}")
 
     def stop_emulator(self) -> None:
         """
@@ -226,9 +363,13 @@ class SandboxManager:
         except Exception as exc:
             logger.debug(f"Pre-install cleanup skipped: {exc}")
 
-        # 2. Install APK and launch app
-        runner.install_apk(apk_path)
-        runner.launch_apk(package_name)
+        # 2. Install APK and launch app with resilient fallback
+        try:
+            runner.install_apk(apk_path)
+            runner.launch_apk(package_name)
+        except Exception as exc:
+            logger.warning(f"Device-level APK installation skipped/fallback for '{package_name}': {exc}")
+            print(f"[SANDBOX WARNING] Device installation fallback for '{package_name}': {exc}")
 
         # 3. Short settle delay to let app open completely on-screen
         settle_seconds = 2
@@ -243,13 +384,18 @@ class SandboxManager:
 
     def monitor_behavior(self, package_name: str, apk_id: str, duration: int = 30) -> dict:
         """
-        Monitors runtime behavior of an active app: starts NetworkMonitor and FridaMonitor,
-        runs observation window for 'duration' seconds, stops monitors, and returns collected data.
+        Monitors runtime behavior of an active app:
+        - Automatically routes emulator proxy to 10.0.2.2:8080 and installs system CA cert
+        - Starts mitmdump network monitor and Frida dynamic instrumentation hooks
+        - Runs light UI exploration and observes behavior for 'duration' seconds
+        - Collects Logcat crashes and permission denial logs
+        - Restores device proxy settings and returns rich telemetry payload.
 
         :param package_name: Target app package name.
         :param apk_id: Unique identifier for the APK analysis session.
         :param duration: Time window in seconds to monitor live behavior.
-        :return: Dict containing network_traffic, file_activity, and api_calls lists.
+        :return: Dict containing network_traffic, file_activity, api_calls, sms_interceptions,
+                 process_executions, dynamic_dex_loads, and logcat_summary.
         """
         from backend.app.dynamic_analysis.network_monitor import NetworkMonitor
         from backend.app.dynamic_analysis.frida_monitor import FridaMonitor
@@ -262,24 +408,41 @@ class SandboxManager:
         os.makedirs(results_dir, exist_ok=True)
         net_log_path = os.path.join(results_dir, f"{apk_id}_network.jsonl")
 
-        net_mon = NetworkMonitor()
-        frida_mon = FridaMonitor()
+        # Clear Logcat before starting telemetry
+        try:
+            subprocess.run([self.adb_path, "logcat", "-c"], check=False, capture_output=True)
+        except Exception:
+            pass
 
-        # 1. Start monitors
-        net_mon.start(net_log_path)
+        # Ensure CA certificate is installed in emulator for transparent SSL interception
+        self.ensure_ca_cert_installed()
+
+        net_mon = NetworkMonitor()
+        frida_mon = FridaMonitor(adb_path=self.adb_path)
+
+        # 1. Start monitors (automatically routes emulator proxy to 10.0.2.2:8080)
+        net_mon.start(net_log_path, adb_path=self.adb_path)
         frida_mon.attach(package_name)
 
-        # 2. Observation sleep window (NOTE: Automated UI exploration via Android Monkey or Accessibility
-        # could be added here to exercise additional user flows and uncover deeper behaviors).
-        logger.info(f"Observing app behavior for {duration} seconds...")
+        # 2. Automated UI exploration & observation window
+        logger.info(f"Observing app behavior for {duration} seconds with active user interaction...")
         print(f"[BEHAVIOR LOG] App running live. Observing for {duration} seconds...")
-        time.sleep(duration)
 
-        # 3. Stop monitors
+        # Run light UI exploration early in the observation window
+        half_duration = max(2, duration // 2)
+        time.sleep(2)
+        self.run_ui_exploration(package_name, event_count=25)
+        remaining = max(1, duration - 4)
+        time.sleep(remaining)
+
+        # 3. Collect Logcat telemetry before stopping
+        logcat_summary = self.collect_logcat_summary(package_name)
+
+        # 4. Stop monitors (automatically clears emulator proxy)
         frida_mon.detach()
-        net_mon.stop()
+        net_mon.stop(adb_path=self.adb_path)
 
-        # 4. Parse & structure collected events
+        # 5. Parse & structure collected events
         network_entries = net_mon.parse_log(net_log_path)
         frida_events = frida_mon.get_events()
 
@@ -287,6 +450,11 @@ class SandboxManager:
             "network_traffic": network_entries,
             "file_activity": frida_events.get("file_activity", []),
             "api_calls": frida_events.get("api_calls", []),
+            "sms_interceptions": frida_events.get("sms_interceptions", []),
+            "process_executions": frida_events.get("process_executions", []),
+            "dynamic_dex_loads": frida_events.get("dynamic_dex_loads", []),
+            "total_frida_events": frida_events.get("total_events", 0),
+            "logcat_summary": logcat_summary,
         }
 
     def run_c2_detection(self, dynamic_results: dict, static_results: dict = None) -> dict:
@@ -296,7 +464,8 @@ class SandboxManager:
 
         :param dynamic_results: Dict containing dynamic analysis data (e.g. network_traffic).
         :param static_results: Optional dict containing static analysis results (e.g. code_analysis).
-        :return: Dict returned by detect_c2 containing suspected_c2_hosts and raw_flagged_traffic.
+        :return: Dict returned by detect_c2 containing suspected_c2_hosts, raw_flagged_traffic,
+                 dga_detections, and c2_summary.
         """
         from backend.app.dynamic_analysis.c2_detection import detect_c2
 
@@ -317,6 +486,3 @@ class SandboxManager:
                 code_analysis_urls_ips = static_results
 
         return detect_c2(network_traffic, code_analysis_urls_ips)
-
-
-

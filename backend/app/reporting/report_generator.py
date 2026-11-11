@@ -63,15 +63,45 @@ def _fallback_pdf_generation(context: Dict[str, Any], pdf_path: str) -> None:
             ('PADDING', (0, 0), (-1, -1), 15),
         ]))
         story.append(banner_table)
-        story.append(Spacer(1, 20))
+        story.append(Spacer(1, 16))
 
-        # Executive Summary
-        story.append(Paragraph("Executive Summary", h2_style))
-        story.append(Spacer(1, 6))
-        story.append(Paragraph("This document contains the automated static cyber-forensic analysis results. "
-                               "The analysis engine extracted the APK, parsed the AndroidManifest.xml, analyzed the DEX bytecode, "
-                               "scanned resources for secrets, verified native libraries, and performed YARA signature matching.", body_style))
-        story.append(Spacer(1, 10))
+        # Confirmed Multi-Vector Threats (High Priority)
+        confirmed = context.get("confirmed_threats", [])
+        if confirmed:
+            story.append(Paragraph("Confirmed Multi-Vector Correlated Threats", h2_style))
+            story.append(Spacer(1, 4))
+            conf_data = [["Status", "Verified Threat Vector"]]
+            for c in confirmed:
+                conf_data.append(["CONFIRMED", c])
+            conf_table = Table([[Paragraph(f"<b>{c[0]}</b>", body_style), Paragraph(c[1], body_style)] for c in conf_data], colWidths=[90, 450])
+            conf_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#dc2626")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#fca5a5")),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor("#fef2f2"), colors.white]),
+                ('PADDING', (0, 0), (-1, -1), 5),
+            ]))
+            story.append(conf_table)
+            story.append(Spacer(1, 14))
+
+        # Executive Threat Narrative (LLM Reasoning Layer)
+        narrative = context.get("unified_threat_narrative") or risk.get("executive_summary")
+        if narrative and not str(narrative).startswith("["):
+            story.append(Paragraph("Executive Forensic Summary (AI Reasoning Layer)", h2_style))
+            story.append(Spacer(1, 6))
+            for para in str(narrative).split("\n\n"):
+                if para.strip():
+                    story.append(Paragraph(para.strip(), body_style))
+                    story.append(Spacer(1, 6))
+            story.append(Spacer(1, 10))
+        else:
+            story.append(Paragraph("Executive Summary", h2_style))
+            story.append(Spacer(1, 6))
+            story.append(Paragraph("This document contains the automated cyber-forensic analysis results. "
+                                   "The analysis engine executed multi-threaded static decompilation, Random Forest ML classification, "
+                                   "CodeBERT semantic pattern matching, dynamic Android emulator sandbox instrumentation, "
+                                   "mitmproxy network interception, and rule-based C2 beaconing detection.", body_style))
+            story.append(Spacer(1, 10))
 
         # Contributing Risk Factors
         story.append(Paragraph("Risk Contributing Factors", h2_style))
@@ -201,9 +231,18 @@ def generate_report(apk_id: str) -> ReportResponse:
     else:
         correlation_file = os.path.join(RESULTS_DIR, f"{apk_id}_correlation.json")
         static_file = os.path.join(RESULTS_DIR, f"{apk_id}_static.json")
+        dynamic_file = os.path.join(RESULTS_DIR, f"{apk_id}_dynamic.json")
+        c2_file = os.path.join(RESULTS_DIR, f"{apk_id}_c2.json")
+
+        cdata = {}
         if os.path.exists(correlation_file):
-            with open(correlation_file, "r", encoding="utf-8") as f:
-                cdata = json.load(f)
+            try:
+                with open(correlation_file, "r", encoding="utf-8") as f:
+                    cdata = json.load(f)
+            except Exception:
+                pass
+
+        if cdata:
             risk_assessment = cdata.get("risk_assessment", {})
             pkg_name = cdata.get("package_name") or cdata.get("static_summary", {}).get("package_name", "unknown.package")
             risk_label = risk_assessment.get("risk_label", "Low Risk")
@@ -223,8 +262,11 @@ def generate_report(apk_id: str) -> ReportResponse:
                     "score": risk_assessment.get("risk_score", 0),
                     "level": risk_label,
                     "factors": risk_assessment.get("contributing_factors", []),
-                    "recommendations": ["Review all flagged contributing risk factors."],
+                    "recommendations": ["Review all flagged contributing risk factors and confirmed threats."],
                 },
+                "confirmed_threats": cdata.get("confirmed_threats", []),
+                "unified_threat_narrative": cdata.get("unified_threat_narrative", ""),
+                "runtime_events": cdata.get("runtime_events", {}),
                 "code_analysis": {},
                 "resource_analysis": {},
                 "native_library_analysis": {},

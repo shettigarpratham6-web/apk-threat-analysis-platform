@@ -64,7 +64,7 @@ export default function UploadPanel({ onUpload, onDynamicUpload, isRunning }) {
             onClick={handleDynamic}
             disabled={!selectedFile || isRunning}
             className="btn btn-secondary"
-            style={{ width: "100%", justifyContent: "center", background: "#7c3aed", color: "#ffffff", border: "none" }}
+            style={{ width: "100%", justifyContent: "center" }}
           >
             🚀 Launch in Fake Phone Sandbox
           </button>

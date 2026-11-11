@@ -34,9 +34,9 @@ export default function ResultsPanel({ stageName, data, stageId }) {
     return (
       <div className="permissions-container" style={{display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "12px"}}>
         {permissions.map((p, i) => {
-          let borderColor = "#3b82f6";
-          let badgeBg = "rgba(59, 130, 246, 0.2)";
-          let badgeColor = "#60a5fa";
+          let borderColor = "var(--card-border)";
+          let badgeBg = "rgba(0, 255, 36, 0.1)";
+          let badgeColor = "var(--neon-green)";
           if (p.severity === "Critical") {
             borderColor = "#ef4444";
             badgeBg = "rgba(239, 68, 68, 0.2)";
@@ -84,8 +84,8 @@ export default function ResultsPanel({ stageName, data, stageId }) {
                 </div>
               )}
               {p.recommendation && (
-                <div style={{fontSize: "11px", color: "#94a3b8", marginTop: "6px"}}>
-                  <strong style={{color: "#38bdf8"}}>Mitigation:</strong> {p.recommendation}
+                <div style={{fontSize: "11px", color: "var(--text-muted)", marginTop: "6px"}}>
+                  <strong style={{color: "var(--neon-green)"}}>Mitigation:</strong> {p.recommendation}
                 </div>
               )}
             </div>
@@ -166,16 +166,16 @@ export default function ResultsPanel({ stageName, data, stageId }) {
             <div style={{
               marginBottom: "20px",
               padding: "16px 18px",
-              borderRadius: "8px",
-              background: "linear-gradient(135deg, rgba(147, 51, 234, 0.12) 0%, rgba(59, 130, 246, 0.08) 100%)",
-              border: "1px solid rgba(168, 85, 247, 0.4)",
+              borderRadius: "0",
+              background: "rgba(0, 255, 36, 0.04)",
+              border: "1px solid var(--neon-green)",
               boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.2)"
             }}>
               <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px"}}>
-                <h4 style={{margin: 0, display: "flex", alignItems: "center", gap: "8px", color: "#c084fc", fontSize: "15px"}}>
+                <h4 style={{margin: 0, display: "flex", alignItems: "center", gap: "8px", color: "var(--neon-green)", fontSize: "14px", fontFamily: "var(--font-mono)", textTransform: "uppercase"}}>
                   <span>🤖</span> AI De-obfuscation & Deep Code Insight
                 </h4>
-                <span style={{fontSize: "11px", background: "#7c3aed", color: "#fff", padding: "2px 8px", borderRadius: "10px", fontFamily: "monospace"}}>
+                <span style={{fontSize: "11px", background: "#050505", border: "1px solid var(--neon-green)", color: "var(--neon-green)", padding: "2px 8px", borderRadius: "0", fontFamily: "monospace"}}>
                   qwen/qwen-2.5-coder-32b-instruct
                 </span>
               </div>
@@ -320,7 +320,7 @@ export default function ResultsPanel({ stageName, data, stageId }) {
                           <td>
                             <span style={{
                               fontWeight: "bold",
-                              color: m.confidence_score >= 0.8 ? "#ef4444" : (m.confidence_score >= 0.65 ? "#f59e0b" : "#3b82f6")
+                              color: m.confidence_score >= 0.8 ? "var(--danger-red)" : (m.confidence_score >= 0.65 ? "var(--warning-amber)" : "var(--neon-green)")
                             }}>
                               {m.similarity_percentage || `${(m.confidence_score * 100).toFixed(1)}%`}
                             </span>
@@ -425,16 +425,16 @@ export default function ResultsPanel({ stageName, data, stageId }) {
               marginTop: "16px",
               marginBottom: "24px",
               padding: "18px 20px",
-              borderRadius: "10px",
-              background: "linear-gradient(135deg, rgba(124, 58, 237, 0.1) 0%, rgba(59, 130, 246, 0.08) 100%)",
-              border: "1px solid rgba(147, 51, 234, 0.35)",
+              borderRadius: "0",
+              background: "rgba(0, 255, 36, 0.04)",
+              border: "1px solid var(--neon-green)",
               boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.3)"
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
-                <h4 style={{ margin: 0, display: "flex", alignItems: "center", gap: "8px", color: "#c084fc", fontSize: "16px" }}>
+                <h4 style={{ margin: 0, display: "flex", alignItems: "center", gap: "8px", color: "var(--neon-green)", fontSize: "15px", fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>
                   <span>🛡️</span> AI Threat Intelligence Executive Summary
                 </h4>
-                <span style={{ fontSize: "11px", background: "#7c3aed", color: "#fff", padding: "3px 10px", borderRadius: "12px", fontFamily: "monospace" }}>
+                <span style={{ fontSize: "11px", background: "#050505", border: "1px solid var(--neon-green)", color: "var(--neon-green)", padding: "3px 10px", borderRadius: "0", fontFamily: "monospace" }}>
                   meta-llama/llama-3.3-70b-instruct
                 </span>
               </div>
@@ -580,7 +580,7 @@ export default function ResultsPanel({ stageName, data, stageId }) {
             </div>
             <div className="metric-box">
               <span className="metric-label">App State</span>
-              <span className="metric-value" style={{color: "#38bdf8"}}>{data.status || "Running"}</span>
+              <span className="metric-value" style={{color: "var(--neon-green)"}}>{data.status || "Running"}</span>
             </div>
             <div className="metric-box">
               <span className="metric-label">APK ID</span>
@@ -595,6 +595,11 @@ export default function ResultsPanel({ stageName, data, stageId }) {
       const net = data.dynamic_analysis?.network_traffic || [];
       const files = data.dynamic_analysis?.file_activity || [];
       const apis = data.dynamic_analysis?.api_calls || [];
+      const sms = data.dynamic_analysis?.sms_interceptions || [];
+      const procs = data.dynamic_analysis?.process_executions || [];
+      const dexs = data.dynamic_analysis?.dynamic_dex_loads || [];
+      const logcat = data.dynamic_analysis?.logcat_summary || {};
+
       return (
         <div>
           <h4>Dynamic Runtime Telemetry (Frida & mitmproxy)</h4>
@@ -611,7 +616,47 @@ export default function ResultsPanel({ stageName, data, stageId }) {
               <span className="metric-label">File Operations</span>
               <span className="metric-value">{files.length}</span>
             </div>
+            <div className="metric-box">
+              <span className="metric-label">Critical Intercepts</span>
+              <span className="metric-value" style={{color: (sms.length + procs.length + dexs.length) > 0 ? "#ef4444" : "#22c55e"}}>
+                {sms.length + procs.length + dexs.length}
+              </span>
+            </div>
           </div>
+
+          {/* High Priority Runtime Interceptions */}
+          {sms.length > 0 && (
+            <div style={{marginBottom: "16px", padding: "14px", borderRadius: "8px", background: "rgba(239, 68, 68, 0.1)", border: "1px solid #ef4444"}}>
+              <h5 style={{color: "#f87171", margin: "0 0 8px 0"}}>⚠️ Intercepted Outbound SMS Transmission ({sms.length})</h5>
+              {sms.map((s, i) => (
+                <div key={i} style={{fontSize: "12px", marginBottom: "4px"}}>
+                  <strong>Destination:</strong> <span className="code-font">{s.details?.destination || s.args?.[0]}</span> | <strong>Preview:</strong> <em>"{s.details?.snippet || s.args?.[1]}"</em>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {procs.length > 0 && (
+            <div style={{marginBottom: "16px", padding: "14px", borderRadius: "8px", background: "rgba(249, 115, 22, 0.1)", border: "1px solid #f97316"}}>
+              <h5 style={{color: "#fb923c", margin: "0 0 8px 0"}}>⚠️ System Process & Shell Execution ({procs.length})</h5>
+              {procs.map((p, i) => (
+                <div key={i} style={{fontSize: "12px", marginBottom: "4px"}}>
+                  <strong>Command:</strong> <code className="code-font">{p.details?.command || (p.args || []).join(" ")}</code>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {dexs.length > 0 && (
+            <div style={{marginBottom: "16px", padding: "14px", borderRadius: "0", background: "rgba(0, 255, 36, 0.06)", border: "1px solid var(--neon-green)"}}>
+              <h5 style={{color: "var(--neon-green)", margin: "0 0 8px 0", fontFamily: "var(--font-mono)", textTransform: "uppercase"}}>⚠️ Dynamic DexClassLoader Invocations ({dexs.length})</h5>
+              {dexs.map((d, i) => (
+                <div key={i} style={{fontSize: "12px", marginBottom: "4px"}}>
+                  <strong>Loaded Path:</strong> <code className="code-font">{d.details?.dexPath || d.args?.[0]}</code>
+                </div>
+              ))}
+            </div>
+          )}
 
           {net.length > 0 ? (
             <div>
@@ -662,6 +707,18 @@ export default function ResultsPanel({ stageName, data, stageId }) {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Logcat Diagnostics */}
+          {logcat && (logcat.crashes_detected > 0 || logcat.security_exceptions_count > 0 || logcat.permission_denials_count > 0) && (
+            <div style={{marginTop: "20px", padding: "14px", borderRadius: "8px", background: "rgba(255, 255, 255, 0.03)", border: "1px solid #334155"}}>
+              <h5 style={{margin: "0 0 10px 0"}}>Runtime Logcat Diagnostics</h5>
+              <div style={{display: "flex", gap: "20px", fontSize: "13px", color: "#cbd5e1"}}>
+                <div>Crashes: <strong style={{color: logcat.crashes_detected > 0 ? "#ef4444" : "#22c55e"}}>{logcat.crashes_detected}</strong></div>
+                <div>Security Exceptions: <strong style={{color: logcat.security_exceptions_count > 0 ? "#f59e0b" : "#22c55e"}}>{logcat.security_exceptions_count}</strong></div>
+                <div>Permission Denials: <strong style={{color: logcat.permission_denials_count > 0 ? "#f59e0b" : "#22c55e"}}>{logcat.permission_denials_count}</strong></div>
+              </div>
             </div>
           )}
         </div>
@@ -748,6 +805,33 @@ export default function ResultsPanel({ stageName, data, stageId }) {
             <p className="text-muted">No high-confidence C2 communication channels detected.</p>
           )}
 
+          {/* DGA Domains Alert */}
+          {((data.dga_detections && data.dga_detections.length > 0) || (c2.dga_detections && c2.dga_detections.length > 0)) && (
+            <div style={{marginBottom: "20px", padding: "14px", borderRadius: "8px", background: "rgba(239, 68, 68, 0.12)", border: "1px solid #ef4444"}}>
+              <h5 style={{color: "#f87171", margin: "0 0 8px 0"}}>🚨 Algorithmically Generated Domains (DGA) Detected</h5>
+              <table className="results-table">
+                <thead>
+                  <tr>
+                    <th>Domain</th>
+                    <th>Entropy</th>
+                    <th>Vowel Ratio</th>
+                    <th>Heuristic Reasons</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data.dga_detections || c2.dga_detections).map((d, i) => (
+                    <tr key={i}>
+                      <td className="code-font" style={{color: "#fca5a5"}}>{d.domain}</td>
+                      <td>{d.entropy} bits/sym</td>
+                      <td>{d.vowel_ratio}</td>
+                      <td style={{fontSize: "12px", color: "#fca5a5"}}>{(d.reasons || []).join("; ")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {indicators.length > 0 && (
             <div style={{marginTop: "20px"}}>
               <h5>Behavioral C2 Indicators</h5>
@@ -807,6 +891,9 @@ export default function ResultsPanel({ stageName, data, stageId }) {
 
     if (stageId === "dyn_report") {
       const risk = data.risk_assessment || {};
+      const confirmed = data.confirmed_threats || [];
+      const narrative = data.unified_threat_narrative;
+
       return (
         <div>
           <h4>Unified Risk Correlation & Forensic Reports</h4>
@@ -819,6 +906,28 @@ export default function ResultsPanel({ stageName, data, stageId }) {
               <p className="text-muted" style={{margin: "4px 0 0 0", fontSize: "13px"}}>Package: {data.package_name || "Analyzed APK"}</p>
             </div>
           </div>
+
+          {/* Confirmed Multi-Vector Correlated Threats */}
+          {confirmed.length > 0 && (
+            <div style={{marginBottom: "20px", padding: "16px", borderRadius: "0", background: "rgba(239, 68, 68, 0.12)", border: "1px solid #ef4444"}}>
+              <h5 style={{color: "#f87171", margin: "0 0 8px 0", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.5px"}}>🚨 Confirmed Multi-Vector Threats (Static Intent + Runtime Reality)</h5>
+              <ul style={{margin: 0, paddingLeft: "20px", color: "#fca5a5", fontSize: "13px"}}>
+                {confirmed.map((ct, i) => (
+                  <li key={i} style={{marginBottom: "4px"}}><strong>{ct}</strong></li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Unified LLM Narrative */}
+          {narrative && !narrative.startsWith("[") && (
+            <div style={{marginBottom: "20px", padding: "18px 20px", borderRadius: "0", background: "rgba(0, 255, 36, 0.05)", border: "1px solid var(--neon-green)"}}>
+              <h5 style={{color: "var(--neon-green)", margin: "0 0 10px 0", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "1px"}}>🧠 Executive Forensic Threat Narrative (OpenRouter LLaMA-3.3-70B)</h5>
+              <div style={{fontSize: "13.5px", lineHeight: "1.7", color: "var(--text-main)", whiteSpace: "pre-line"}}>
+                {narrative}
+              </div>
+            </div>
+          )}
 
           <h5>Contributing Threat Factors</h5>
           <ul>

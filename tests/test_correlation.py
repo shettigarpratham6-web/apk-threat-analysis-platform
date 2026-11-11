@@ -112,3 +112,90 @@ def test_correlation_analyze_endpoint():
         for p in [static_file, dynamic_file, c2_file, servers_file, correlation_file]:
             if os.path.exists(p):
                 os.remove(p)
+
+
+def test_confirmed_threats_multi_vector_correlation():
+    # Test correlation engine combining static permissions and dynamic Frida SMS/exec activity
+    mock_static = {
+        "manifest": {
+            "declared_dangerous_permissions": ["android.permission.SEND_SMS"],
+        },
+        "code_analysis": {
+            "suspicious_apis": [{"api": "Runtime.exec"}],
+        },
+        "signature_check": {
+            "yara_matches": [],
+            "virustotal": {"positives": 0}
+        }
+    }
+
+    mock_dynamic = {
+        "frida_events": {
+            "sms_interceptions": [{"destination": "1234", "message": "spy"}],
+            "process_executions": [{"command": "su -c ls"}],
+            "dynamic_dex_loads": [{"dexPath": "/tmp/dropped.apk"}],
+        }
+    }
+
+    mock_c2 = {
+        "suspected_c2_hosts": [
+            {"host": "evil-c2.cc", "confidence": "high", "reasons": ["Beaconing"]}
+        ],
+        "dga_detections": [
+            {"domain": "evil-c2.cc", "entropy": 3.8}
+        ]
+    }
+
+    mock_servers = {
+        "checked": [
+            {"host": "evil-c2.cc", "verdict": "malicious"}
+        ]
+    }
+
+    # Test scoring with confirmed_threats parameter
+    res = compute_risk_score(
+        mock_static,
+        mock_dynamic,
+        mock_c2,
+        mock_servers,
+        confirmed_threats=["Confirmed SMS Trojan", "Active Shell Execution"]
+    )
+    assert res["risk_score"] >= 80
+    assert "score_breakdown" in res
+    assert "correlated_threats_score" in res["score_breakdown"]
+    assert res["score_breakdown"]["correlated_threats_score"] == 30
+
+    # Test confirmed threats in correlate_apk via aggregator logic
+    from backend.app.correlation.aggregator import correlate_apk
+
+    results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend", "results"))
+    os.makedirs(results_dir, exist_ok=True)
+    test_id = "test_confirmed_multi_vector"
+
+    s_file = os.path.join(results_dir, f"{test_id}_static.json")
+    d_file = os.path.join(results_dir, f"{test_id}_dynamic.json")
+    c_file = os.path.join(results_dir, f"{test_id}_c2.json")
+    srv_file = os.path.join(results_dir, f"{test_id}_servers.json")
+
+    with open(s_file, "w") as f:
+        json.dump(mock_static, f)
+    with open(d_file, "w") as f:
+        json.dump(mock_dynamic, f)
+    with open(c_file, "w") as f:
+        json.dump(mock_c2, f)
+    with open(srv_file, "w") as f:
+        json.dump(mock_servers, f)
+
+    try:
+        corr = correlate_apk(test_id)
+        assert "confirmed_threats" in corr
+        assert any("SMS Trojan" in t for t in corr["confirmed_threats"])
+        assert any("Shell Execution" in t for t in corr["confirmed_threats"])
+        assert any("Dynamic Dropper" in t for t in corr["confirmed_threats"])
+        assert any("DGA" in t for t in corr["confirmed_threats"])
+        assert "unified_threat_narrative" in corr
+    finally:
+        for p in [s_file, d_file, c_file, srv_file, os.path.join(results_dir, f"{test_id}_correlation.json")]:
+            if os.path.exists(p):
+                os.remove(p)
+

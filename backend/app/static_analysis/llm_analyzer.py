@@ -212,6 +212,104 @@ def analyze_suspicious_code(code_snippet: str) -> str:
         return f"[LLM code analysis failed: {exc}]"
 
 
+def generate_unified_threat_narrative(correlated_data: Dict[str, Any]) -> str:
+    """Generates an executive forensic narrative synthesizing BOTH static bytecode findings
+    AND dynamic runtime execution evidence (network flows, Frida hooks, C2 beacons, threat intel).
+
+    Uses meta-llama/llama-3.3-70b-instruct via OpenRouter.
+
+    :param correlated_data: Correlated data dictionary containing package_name, risk_assessment,
+                            static_summary, dynamic_summary, c2_summary, server_summary,
+                            confirmed_threats, and runtime_events.
+    :return: Authoritative multi-paragraph executive narrative.
+    """
+    client = _get_openrouter_client()
+    if client is None:
+        return (
+            "[Unified Threat Narrative unavailable — OPENROUTER_API_KEY is not configured in .env. "
+            "All multi-vector correlation findings above remain verified.]"
+        )
+
+    pkg = correlated_data.get("package_name", "Unknown Application")
+    risk = correlated_data.get("risk_assessment", {})
+    score = risk.get("risk_score", 0)
+    label = risk.get("risk_label", "Unknown Risk")
+
+    static_sum = correlated_data.get("static_summary", {})
+    dynamic_sum = correlated_data.get("dynamic_summary", {})
+    c2_sum = correlated_data.get("c2_summary", {})
+    server_sum = correlated_data.get("server_summary", {})
+    confirmed = correlated_data.get("confirmed_threats", [])
+    runtime_ev = correlated_data.get("runtime_events", {})
+
+    # Build structured factual summary
+    confirmed_str = "; ".join(confirmed) if confirmed else "None established (indicators unconfirmed at runtime)"
+    factors_str = "; ".join(risk.get("contributing_factors", [])[:6])
+
+    c2_hosts_cnt = c2_sum.get("suspected_c2_hosts_count", 0)
+    has_beacon = c2_sum.get("has_periodic_beacon", False)
+    dga_cnt = c2_sum.get("dga_domains_detected", 0)
+
+    sms_cnt = len(runtime_ev.get("sms_interceptions", []))
+    proc_cnt = len(runtime_ev.get("process_executions", []))
+    dex_cnt = len(runtime_ev.get("dynamic_dex_loads", []))
+
+    system_prompt = (
+        "You are a Principal Cyber Threat Intelligence & Android Malware Reverse Engineer. "
+        "You provide rigorous, evidence-grounded executive summaries for corporate CISOs and "
+        "Security Operations Center (SOC) incident response teams.\n\n"
+        "Your report must consist of exactly 3 well-structured paragraphs:\n"
+        "  Paragraph 1 - Executive Threat Verdict: Overall risk classification, confidence level, "
+        "and primary verdict (Benign vs. Potentially Suspicious vs. Confirmed Malicious).\n"
+        "  Paragraph 2 - Evidence Synthesis (Static Intent vs. Runtime Reality): Correlate what "
+        "the application requested statically (permissions, APIs, ML score) with what was actively "
+        "observed at runtime (network traffic, C2 beaconing, DGA domains, Frida-intercepted actions, "
+        "or lack thereof). Distinguish confirmed execution from dormant indicators.\n"
+        "  Paragraph 3 - Actionable Incident Response & Remediation: Concrete containment, blocking, "
+        "and operational steps for enterprise security teams.\n\n"
+        "Maintain strict technical precision. Rely solely on the provided evidence without fabricating unobserved activity."
+    )
+
+    user_prompt = (
+        f"Synthesize the following comprehensive static and dynamic malware analysis findings for "
+        f"Android package '{pkg}':\n\n"
+        f"**Risk Score:** {score} / 100 ({label.upper()})\n"
+        f"**Confirmed Correlated Threats:** {confirmed_str}\n"
+        f"**Static Analysis:** {static_sum.get('dangerous_permissions_count', 0)} dangerous permissions, "
+        f"{static_sum.get('suspicious_apis_count', 0)} suspicious APIs, "
+        f"{static_sum.get('yara_matches_count', 0)} YARA signature matches.\n"
+        f"**Dynamic Runtime Execution:** {dynamic_sum.get('network_entries_count', 0)} network flows, "
+        f"{dynamic_sum.get('file_activity_count', 0)} file operations, "
+        f"{dynamic_sum.get('api_calls_count', 0)} runtime API calls.\n"
+        f"**C2 & Threat Intelligence:** {c2_hosts_cnt} suspected C2 destination(s), "
+        f"Periodic Beaconing Detected: {has_beacon}, DGA Domains Flagged: {dga_cnt}, "
+        f"External Server Reputation Verdicts: {server_sum.get('verdicts_breakdown', {})}.\n"
+        f"**Frida Behavioral Interceptions:** SMS Intercepts: {sms_cnt}, Shell/Process Executions: {proc_cnt}, "
+        f"Dynamic Dex Loads: {dex_cnt}.\n"
+        f"**Key Contributing Factors:** {factors_str}\n\n"
+        "Produce the 3-paragraph executive threat narrative now."
+    )
+
+    try:
+        response = client.chat.completions.create(
+            model=_NARRATIVE_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_tokens=750,
+            temperature=0.25,
+        )
+        narrative = response.choices[0].message.content.strip()
+        logger.info(
+            f"Unified multi-vector threat narrative generated via {_NARRATIVE_MODEL} ({len(narrative)} chars)."
+        )
+        return narrative
+    except Exception as exc:
+        logger.error(f"generate_unified_threat_narrative failed: {exc}")
+        return f"[Unified Threat Narrative generation failed: {exc}. All factual analysis tables above remain valid.]"
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------

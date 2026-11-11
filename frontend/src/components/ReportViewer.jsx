@@ -40,17 +40,17 @@ export default function ReportViewer({ apkId }) {
               <a href={jsonUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">
                 📥 Download JSON
               </a>
-              <a href={iocJsonUrl} target="_blank" rel="noopener noreferrer" className="btn btn-accent btn-sm">
+              <a href={iocJsonUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">
                 📥 Download IOC JSON
               </a>
-              <a href={iocCsvUrl} target="_blank" rel="noopener noreferrer" className="btn btn-accent btn-sm">
+              <a href={iocCsvUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">
                 📥 Download IOC CSV
               </a>
             </div>
         )}
       </div>
 
-      <div className="iframe-container" style={{ minHeight: "600px", border: "1px solid #334155", borderRadius: "8px", overflow: "hidden", marginTop: "15px" }}>
+      <div className="iframe-container" style={{ minHeight: "600px", border: "1px solid var(--card-border)", borderRadius: "0", overflow: "hidden", marginTop: "15px" }}>
         {loading && (
             <div style={{padding: "50px", textAlign: "center"}}>
                 <div style={{fontSize: "40px", marginBottom: "20px"}}>⏳</div>

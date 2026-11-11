@@ -12,7 +12,9 @@ logger = logging.getLogger("network_monitor")
 
 
 class NetworkMonitor:
-    """Launches mitmdump traffic logger subprocess and parses generated JSON lines logs."""
+    """Launches mitmdump traffic logger subprocess, manages Android emulator proxy configuration,
+    and parses generated JSON lines logs.
+    """
 
     def __init__(self, addon_script_path: str = "sandbox/mitmproxy_config/traffic_logger.py"):
         if not os.path.isabs(addon_script_path):
@@ -22,13 +24,38 @@ class NetworkMonitor:
         self.addon_script_path = addon_script_path
         self.process: Optional[subprocess.Popen] = None
 
-    def start(self, output_path: str) -> None:
+    @staticmethod
+    def enable_emulator_proxy(adb_path: str = "adb", proxy_address: str = "10.0.2.2:8080") -> bool:
+        """Configures the global Android emulator HTTP proxy via ADB settings."""
+        try:
+            cmd = [adb_path, "shell", "settings", "put", "global", "http_proxy", proxy_address]
+            res = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            if res.returncode == 0:
+                logger.info(f"Configured Android emulator HTTP proxy: {proxy_address}")
+                print(f"[NETWORK LOG] Android global HTTP proxy routed to {proxy_address}")
+                return True
+        except Exception as exc:
+            logger.warning(f"Failed to set emulator global proxy: {exc}")
+        return False
+
+    @staticmethod
+    def disable_emulator_proxy(adb_path: str = "adb") -> bool:
+        """Clears the global Android emulator HTTP proxy via ADB settings."""
+        try:
+            cmd = [adb_path, "shell", "settings", "put", "global", "http_proxy", ":0"]
+            res = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            if res.returncode == 0:
+                logger.info("Cleared Android emulator global HTTP proxy.")
+                print("[NETWORK LOG] Android global HTTP proxy cleared.")
+                return True
+        except Exception as exc:
+            logger.warning(f"Failed to clear emulator global proxy: {exc}")
+        return False
+
+    def start(self, output_path: str, adb_path: Optional[str] = None) -> None:
         """
         Launches mitmdump in background to intercept and record network traffic.
-
-        NOTE: For the Android emulator to route traffic through mitmproxy, configure the emulator
-        proxy via '-http-proxy 127.0.0.1:8080' or run:
-        'adb shell settings put global http_proxy 127.0.0.1:8080'
+        Optionally sets the emulator's global proxy if adb_path is provided.
         """
         # Ensure target log output directory exists
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
@@ -67,8 +94,15 @@ class NetworkMonitor:
             )
             print(f"[NETWORK WARNING] mitmdump process launch skipped/failed: {exc}")
 
-    def stop(self) -> None:
-        """Terminates the mitmdump proxy process cleanly."""
+        # Automatically route emulator proxy if adb_path is supplied
+        if adb_path:
+            self.enable_emulator_proxy(adb_path=adb_path)
+
+    def stop(self, adb_path: Optional[str] = None) -> None:
+        """Terminates the mitmdump proxy process cleanly and restores device proxy settings."""
+        if adb_path:
+            self.disable_emulator_proxy(adb_path=adb_path)
+
         if self.process is not None:
             logger.info("Stopping mitmdump network monitor...")
             print("[NETWORK LOG] Stopping mitmdump network monitor...")
@@ -108,3 +142,9 @@ class NetworkMonitor:
             logger.error(f"Error parsing network traffic log file '{output_path}': {exc}")
 
         return entries
+
+
+# Module-level convenience functions
+enable_emulator_proxy = NetworkMonitor.enable_emulator_proxy
+disable_emulator_proxy = NetworkMonitor.disable_emulator_proxy
+

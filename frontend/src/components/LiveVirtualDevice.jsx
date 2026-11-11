@@ -8,52 +8,63 @@ export default function LiveVirtualDevice({ activePackageName, isRunning }) {
   const [screenError, setScreenError] = useState(false);
   const [touchIndicator, setTouchIndicator] = useState(null);
   const screenRef = useRef(null);
+  const streamTimerRef = useRef(null);
 
-  // Poll device status
+  // Poll device status every 4 seconds
   useEffect(() => {
     let isMounted = true;
     const fetchInfo = async () => {
       try {
         const info = await getDeviceInfo();
-        if (isMounted) setDeviceInfo(info);
+        if (isMounted && info) setDeviceInfo(info);
       } catch (_) {}
     };
 
     fetchInfo();
-    const infoInterval = setInterval(fetchInfo, 3000);
+    const infoInterval = setInterval(fetchInfo, 4000);
     return () => {
       isMounted = false;
       clearInterval(infoInterval);
     };
   }, []);
 
-  // Poll live screen frames
-  useEffect(() => {
+  // Adaptive chained frame streaming (zero overlapping requests, buttery-smooth)
+  const scheduleNextFrame = (delayMs = 750) => {
+    if (streamTimerRef.current) clearTimeout(streamTimerRef.current);
     if (!isLiveStreaming) return;
+    streamTimerRef.current = setTimeout(() => {
+      setScreenUrl(getDeviceScreenUrl());
+    }, delayMs);
+  };
 
-    let isMounted = true;
-    const interval = setInterval(() => {
-      if (isMounted) {
-        setScreenUrl(getDeviceScreenUrl());
-      }
-    }, 1000);
-
+  useEffect(() => {
+    if (isLiveStreaming) {
+      scheduleNextFrame(100);
+    }
     return () => {
-      isMounted = false;
-      clearInterval(interval);
+      if (streamTimerRef.current) clearTimeout(streamTimerRef.current);
     };
   }, [isLiveStreaming]);
 
-  // Force immediate refresh on interaction or when analysis starts
+  // Force immediate refresh when analysis begins
   useEffect(() => {
     if (isRunning) {
       setIsLiveStreaming(true);
-      const timer = setTimeout(() => setScreenUrl(getDeviceScreenUrl()), 1200);
-      return () => clearTimeout(timer);
+      scheduleNextFrame(150);
     }
   }, [isRunning]);
 
-  const handleScreenClick = async (e) => {
+  const handleFrameLoad = () => {
+    setScreenError(false);
+    scheduleNextFrame(750);
+  };
+
+  const handleFrameError = () => {
+    setScreenError(true);
+    scheduleNextFrame(2500);
+  };
+
+  const handleScreenClick = (e) => {
     if (!screenRef.current) return;
     const rect = screenRef.current.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
@@ -62,44 +73,37 @@ export default function LiveVirtualDevice({ activePackageName, isRunning }) {
     const relX = Math.max(0, Math.min(1, clickX / rect.width));
     const relY = Math.max(0, Math.min(1, clickY / rect.height));
 
-    // Display temporary touch ripple
+    // Instant tactile feedback ripple
     setTouchIndicator({ x: clickX, y: clickY });
-    setTimeout(() => setTouchIndicator(null), 400);
+    setTimeout(() => setTouchIndicator(null), 350);
 
-    try {
-      await sendDeviceTouch({ action: "tap", x: relX, y: relY });
-      setTimeout(() => setScreenUrl(getDeviceScreenUrl()), 300);
-    } catch (err) {
-      console.warn("Touch error:", err);
-    }
+    // Asynchronous touch dispatch & rapid next-frame capture
+    sendDeviceTouch({ action: "tap", x: relX, y: relY })
+      .then(() => setTimeout(() => setScreenUrl(getDeviceScreenUrl()), 120))
+      .catch(err => console.warn("Touch error:", err));
   };
 
-  const handleKey = async (keyCode) => {
-    try {
-      await sendDeviceTouch({ action: "key", key_code: keyCode });
-      setTimeout(() => setScreenUrl(getDeviceScreenUrl()), 350);
-    } catch (err) {
-      console.warn("Key error:", err);
-    }
+  const handleKey = (keyCode) => {
+    sendDeviceTouch({ action: "key", key_code: keyCode })
+      .then(() => setTimeout(() => setScreenUrl(getDeviceScreenUrl()), 120))
+      .catch(err => console.warn("Key error:", err));
   };
 
-  const handleWake = async () => {
-    try {
-      await wakeDevice();
-      setTimeout(() => setScreenUrl(getDeviceScreenUrl()), 400);
-    } catch (_) {}
+  const handleWake = () => {
+    wakeDevice()
+      .then(() => setTimeout(() => setScreenUrl(getDeviceScreenUrl()), 150))
+      .catch(() => {});
   };
 
   return (
     <div className="card live-phone-card" style={{
-      background: "linear-gradient(180deg, #0b1120 0%, #0f172a 100%)",
-      border: "1px solid #1e293b",
-      borderRadius: "16px",
+      background: "var(--card-bg)",
+      border: "1px solid var(--card-border)",
+      borderRadius: "0",
       padding: "20px",
       display: "flex",
       flexDirection: "column",
-      alignItems: "center",
-      boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)"
+      alignItems: "center"
     }}>
       {/* Top Header Bar */}
       <div style={{
@@ -114,22 +118,23 @@ export default function LiveVirtualDevice({ activePackageName, isRunning }) {
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <span style={{
             display: "inline-block",
-            width: "10px",
-            height: "10px",
-            borderRadius: "50%",
-            backgroundColor: isLiveStreaming ? "#22c55e" : "#eab308",
-            boxShadow: isLiveStreaming ? "0 0 10px #22c55e" : "none"
+            width: "8px",
+            height: "8px",
+            borderRadius: "0",
+            backgroundColor: isLiveStreaming ? "var(--neon-green)" : "var(--warning-amber)",
+            boxShadow: isLiveStreaming ? "0 0 10px var(--neon-green)" : "none"
           }}></span>
-          <span style={{ fontWeight: "700", fontSize: "14px", color: "#f8fafc", letterSpacing: "0.5px" }}>
+          <span style={{ fontWeight: "900", fontSize: "13px", color: "var(--text-main)", letterSpacing: "1px", fontFamily: "var(--font-mono)" }}>
             LIVE VIRTUAL DEVICE
           </span>
           <span style={{
-            background: "#1e293b",
-            color: "#38bdf8",
+            background: "#050505",
+            color: "var(--neon-green)",
+            border: "1px solid var(--card-border)",
             padding: "2px 8px",
-            borderRadius: "4px",
+            borderRadius: "0",
             fontSize: "11px",
-            fontFamily: "monospace"
+            fontFamily: "var(--font-mono)"
           }}>
             {deviceInfo.device || "emulator-5554"}
           </span>
@@ -138,31 +143,25 @@ export default function LiveVirtualDevice({ activePackageName, isRunning }) {
         <div style={{ display: "flex", gap: "6px" }}>
           <button
             onClick={() => setIsLiveStreaming(!isLiveStreaming)}
-            className="btn btn-sm"
+            className="btn btn-sm btn-secondary"
             style={{
               padding: "4px 10px",
-              fontSize: "11px",
-              background: isLiveStreaming ? "#065f46" : "#334155",
-              color: "#fff",
-              border: "none",
-              borderRadius: "4px"
+              fontSize: "10px",
+              borderRadius: "0"
             }}
           >
-            {isLiveStreaming ? "🟢 Live (1s)" : "⏸️ Paused"}
+            {isLiveStreaming ? "🟢 LIVE (1S)" : "⏸️ PAUSED"}
           </button>
           <button
             onClick={() => { setScreenUrl(getDeviceScreenUrl()); handleWake(); }}
-            className="btn btn-sm"
+            className="btn btn-sm btn-secondary"
             style={{
               padding: "4px 10px",
-              fontSize: "11px",
-              background: "#334155",
-              color: "#e2e8f0",
-              border: "none",
-              borderRadius: "4px"
+              fontSize: "10px",
+              borderRadius: "0"
             }}
           >
-            ⚡ Wake Screen
+            ⚡ WAKE
           </button>
         </div>
       </div>
@@ -170,18 +169,19 @@ export default function LiveVirtualDevice({ activePackageName, isRunning }) {
       {/* Target App Badge */}
       <div style={{
         width: "100%",
-        background: "#0f172a",
-        border: "1px solid #1e293b",
-        padding: "6px 12px",
-        borderRadius: "6px",
+        background: "#050505",
+        border: "1px solid var(--card-border)",
+        padding: "8px 12px",
+        borderRadius: "0",
         marginBottom: "16px",
-        fontSize: "12px",
-        color: "#94a3b8",
+        fontSize: "11px",
+        fontFamily: "var(--font-mono)",
+        color: "var(--text-muted)",
         display: "flex",
         justifyContent: "space-between"
       }}>
-        <span>Focused App: <strong style={{ color: "#38bdf8", fontFamily: "monospace" }}>{deviceInfo.current_app || activePackageName || "Home Launcher"}</strong></span>
-        <span>Display: <strong style={{ color: "#e2e8f0" }}>1080×2220</strong></span>
+        <span>FOCUSED: <strong style={{ color: "var(--neon-green)" }}>{deviceInfo.current_app || activePackageName || "Home Launcher"}</strong></span>
+        <span>DISPLAY: <strong style={{ color: "var(--text-main)" }}>1080×2220</strong></span>
       </div>
 
       {/* Realistic Smartphone Chassis */}
@@ -259,8 +259,8 @@ export default function LiveVirtualDevice({ activePackageName, isRunning }) {
             <img
               src={screenUrl}
               alt="Live Android Emulator Screen"
-              onError={() => setScreenError(true)}
-              onLoad={() => setScreenError(false)}
+              onError={handleFrameError}
+              onLoad={handleFrameLoad}
               style={{
                 width: "100%",
                 height: "100%",

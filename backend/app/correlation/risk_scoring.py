@@ -1,7 +1,7 @@
 """Module for computing unified risk scores by correlating static, dynamic, C2, and server reputation results."""
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("risk_scoring")
 
@@ -19,6 +19,9 @@ logger = logging.getLogger("risk_scoring")
 # 6. External Server Reputation Verdicts:
 #      - 'malicious' verdict:  +25 points each
 #      - 'suspicious' verdict: +10 points each
+# 7. Static ML Random Forest Classifier: +up to 20 points based on model probability.
+# 8. Confirmed Multi-Vector Correlated Threats: +15 points per confirmed static+dynamic
+#    alignment (SMS Trojan, Dropper, Shell Exec, Active C2, Malicious Infrastructure), capped at +30.
 #
 # Score Range & Qualitative Risk Labels:
 #   0  - 25  : Low Risk
@@ -29,19 +32,21 @@ logger = logging.getLogger("risk_scoring")
 
 
 def compute_risk_score(
-    static_results: Dict[str, Any] = None,
-    dynamic_results: Dict[str, Any] = None,
-    c2_results: Dict[str, Any] = None,
-    server_results: Dict[str, Any] = None,
+    static_results: Optional[Dict[str, Any]] = None,
+    dynamic_results: Optional[Dict[str, Any]] = None,
+    c2_results: Optional[Dict[str, Any]] = None,
+    server_results: Optional[Dict[str, Any]] = None,
+    confirmed_threats: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Computes a transparent, weighted risk score combining static analysis, dynamic behavior,
-    C2 beaconing detection, and external server reputation lookup results.
+    C2 beaconing detection, confirmed multi-vector threats, and external server reputation lookup results.
 
     :param static_results: Dict containing manifest, code_analysis, signature_check.
     :param dynamic_results: Dict containing network_traffic, file_activity, api_calls.
     :param c2_results: Dict containing suspected_c2_hosts, raw_flagged_traffic.
     :param server_results: Dict containing checked server reputation list.
+    :param confirmed_threats: Optional list of verified static+dynamic correlated threat strings.
     :return: Dict containing risk_score, risk_label, score_breakdown, and contributing_factors.
     """
     if static_results is None:
@@ -52,6 +57,8 @@ def compute_risk_score(
         c2_results = {}
     if server_results is None:
         server_results = {}
+    if confirmed_threats is None:
+        confirmed_threats = []
 
     # Extract nested sections safely
     static = static_results.get("static_analysis", static_results)
@@ -75,8 +82,16 @@ def compute_risk_score(
         "c2_hosts_score": 0,
         "server_reputation_score": 0,
         "ml_classifier_score": 0,
+        "correlated_threats_score": 0,
     }
     contributing_factors: List[str] = []
+
+    # 0. Confirmed Multi-Vector Correlated Threats (Highest Confidence)
+    if confirmed_threats:
+        corr_score = min(30, len(confirmed_threats) * 15)
+        score_breakdown["correlated_threats_score"] = corr_score
+        for ct in confirmed_threats:
+            contributing_factors.append(f"[CONFIRMED THREAT] {ct}")
 
     # 1. Dangerous Permissions Score
     dang_perms = manifest.get("declared_dangerous_permissions", [])

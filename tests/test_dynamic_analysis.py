@@ -319,3 +319,81 @@ def test_check_servers_endpoint():
                 os.remove(p)
 
 
+def test_dga_detection_and_entropy():
+    from backend.app.dynamic_analysis.c2_detection import calculate_entropy, is_dga_domain, detect_c2
+
+    # Low entropy regular domains
+    assert calculate_entropy("google.com") < 3.2
+    is_dga, _ = is_dga_domain("google.com")
+    assert is_dga is False
+    is_dga, _ = is_dga_domain("api.github.com")
+    assert is_dga is False
+
+    # High entropy pseudorandom DGA domains
+    dga_domain = "qxzkjfpwytrmbvlc.net"
+    assert calculate_entropy(dga_domain) > 3.6
+    is_dga, _ = is_dga_domain(dga_domain)
+    assert is_dga is True
+
+    # Test in detect_c2 with beaconing timestamps and suspicious ports
+    now = 1700000000.0
+    entries = [
+        {"host": dga_domain, "path": "/gate.php", "port": 4444, "timestamp": now + (i * 10.0), "method": "POST"}
+        for i in range(6)
+    ]
+    res = detect_c2(entries)
+    assert len(res["dga_detections"]) >= 1
+    assert res["dga_detections"][0]["domain"] == dga_domain
+    assert len(res["suspected_c2_hosts"]) >= 1
+    suspect = next(h for h in res["suspected_c2_hosts"] if h["host"] == dga_domain)
+    assert suspect["confidence"] == "high"
+    assert any("DGA" in r for r in suspect["reasons"])
+    assert any("4444" in r for r in suspect["reasons"])
+
+
+def test_frida_monitor_enhanced_categories():
+    monitor = FridaMonitor()
+    # Test SMS interception hook
+    monitor._on_message(
+        {"type": "send", "payload": {"category": "sms_interceptions", "api": "sendTextMessage", "destination": "+18005550199", "message": "SECRET_OTP"}},
+        None
+    )
+    # Test process execution hook
+    monitor._on_message(
+        {"type": "send", "payload": {"category": "process_executions", "api": "Runtime.exec", "command": "/system/bin/sh -c id"}},
+        None
+    )
+    # Test dynamic dex load hook
+    monitor._on_message(
+        {"type": "send", "payload": {"category": "dynamic_dex_loads", "api": "DexClassLoader", "dexPath": "/data/local/tmp/payload.apk"}},
+        None
+    )
+
+    events = monitor.get_events()
+    assert len(events["sms_interceptions"]) == 1
+    assert events["sms_interceptions"][0]["destination"] == "+18005550199"
+    assert len(events["process_executions"]) == 1
+    assert "sh -c id" in events["process_executions"][0]["command"]
+    assert len(events["dynamic_dex_loads"]) == 1
+    assert "payload.apk" in events["dynamic_dex_loads"][0]["dexPath"]
+
+
+def test_network_monitor_proxy_helpers():
+    from backend.app.dynamic_analysis.network_monitor import enable_emulator_proxy, disable_emulator_proxy
+
+    with patch("subprocess.run") as mock_sub:
+        mock_sub.return_value = MagicMock(returncode=0)
+        enable_emulator_proxy("adb", "10.0.2.2:8080")
+        assert mock_sub.called
+        call_args = mock_sub.call_args[0][0]
+        assert "global" in call_args and "http_proxy" in call_args and "10.0.2.2:8080" in call_args
+
+    with patch("subprocess.run") as mock_sub:
+        mock_sub.return_value = MagicMock(returncode=0)
+        disable_emulator_proxy("adb")
+        assert mock_sub.called
+        call_args = mock_sub.call_args[0][0]
+        assert ":0" in call_args
+
+
+

@@ -12,10 +12,20 @@ from backend.app.routes.reporting import router as reporting_router
 
 app = FastAPI(title="APK Threat Analysis Platform")
 
-# Enable CORS for browser frontend communication
+# Enable CORS for local browser frontend communication (Hardened against CSRF)
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
