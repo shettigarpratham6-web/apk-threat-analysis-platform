@@ -1,4 +1,3 @@
-import os
 import pytest
 from sandbox.apk_analyzer import SENSITIVE_PERMISSIONS_DB, APKAnalyzer
 

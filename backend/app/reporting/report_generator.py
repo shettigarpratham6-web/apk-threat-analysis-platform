@@ -31,7 +31,6 @@ def _fallback_pdf_generation(context: Dict[str, Any], pdf_path: str) -> None:
         title_style = ParagraphStyle("TitleStyle", parent=styles["Heading1"], fontSize=18, leading=22, textColor=colors.HexColor("#0f172a"))
         h2_style = ParagraphStyle("H2Style", parent=styles["Heading2"], fontSize=13, leading=16, textColor=colors.HexColor("#1e293b"))
         body_style = ParagraphStyle("BodyStyle", parent=styles["BodyText"], fontSize=10, leading=14, textColor=colors.HexColor("#334155"))
-        code_style = ParagraphStyle("CodeStyle", parent=styles["Code"], fontSize=8, leading=10, textColor=colors.HexColor("#475569"))
 
         # Cover Page
         story.append(Paragraph("APK Threat Analysis Platform - Forensic Report", title_style))
@@ -236,8 +235,6 @@ def generate_report(apk_id: str) -> ReportResponse:
     else:
         correlation_file = os.path.join(RESULTS_DIR, f"{apk_id}_correlation.json")
         static_file = os.path.join(RESULTS_DIR, f"{apk_id}_static.json")
-        dynamic_file = os.path.join(RESULTS_DIR, f"{apk_id}_dynamic.json")
-        c2_file = os.path.join(RESULTS_DIR, f"{apk_id}_c2.json")
 
         cdata = {}
         if os.path.exists(correlation_file):

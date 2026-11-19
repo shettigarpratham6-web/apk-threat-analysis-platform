@@ -27,12 +27,12 @@ def calculate_risk(manifest: Dict, code: Dict, resources: Dict, natives: Dict, y
                 score += 10
                 factors.append(f"High risk permission: {perm['name']}")
                 
-    if manifest.get("security_flags", {}).get("debuggable") == True:
+    if manifest.get("security_flags", {}).get("debuggable"):
         score += 10
         factors.append("App is debuggable (android:debuggable=true)")
         recommendations.add("Set android:debuggable to false for release.")
         
-    if manifest.get("security_flags", {}).get("allowBackup") == True:
+    if manifest.get("security_flags", {}).get("allowBackup"):
         score += 5
         factors.append("App allows backup (android:allowBackup=true)")
         

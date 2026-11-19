@@ -1,12 +1,5 @@
-# ==============================================================================
-# DOCKER COMPOSE CONFIGURATION — APK THREAT ANALYSIS PLATFORM
-# ==============================================================================
-# IMPORTANT DEMO NOTE:
-# The Android Emulator, Frida instrumentation server, and mitmproxy network tap
-# components require host-level hardware virtualization (KVM/HAXM) and local ADB
-# socket bindings. Therefore, the Dynamic Sandbox execution stage runs on the
-# host machine alongside this Dockerized backend & frontend stack.
-# ==============================================================================
+# Note: The Android emulator, Frida server, and mitmproxy run on the host machine.
+# Backend and frontend services run in containers below.
 
 services:
   backend:
@@ -14,7 +7,7 @@ services:
       context: ..
       dockerfile: docker/backend.Dockerfile
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file:
       - ../.env
     volumes:
@@ -26,6 +19,6 @@ services:
       context: ..
       dockerfile: docker/frontend.Dockerfile
     ports:
-      - "5173:5173"
+      - "5173:80"
     depends_on:
       - backend

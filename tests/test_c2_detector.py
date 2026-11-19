@@ -1,4 +1,3 @@
-import pytest
 from sandbox.c2_detector import C2Detector
 
 def test_c2_detector_clean():

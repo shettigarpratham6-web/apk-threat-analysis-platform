@@ -4,7 +4,6 @@ import asyncio
 import json
 import logging
 import os
-import shutil
 import subprocess
 import time
 import uuid
@@ -201,10 +200,6 @@ async def monitor_apk_behavior(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to monitor APK behavior.",
         )
-
-
-class C2DetectRequest(BaseModel if 'BaseModel' in globals() else object):
-    pass
 
 
 @router.post("/c2-detect")

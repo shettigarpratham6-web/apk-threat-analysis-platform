@@ -204,7 +204,7 @@ def correlate_apk(apk_id: str) -> Dict[str, Any]:
         )
     elif dynamic_dex_loads:
         confirmed_threats.append(
-            f"Dynamic Code Execution / Dropper: Invoked DexClassLoader at runtime to load secondary bytecode"
+            "Dynamic Code Execution / Dropper: Invoked DexClassLoader at runtime to load secondary bytecode"
         )
 
     # Correlation C: Command Execution / Root Shell (Static root commands + Runtime Runtime.exec)

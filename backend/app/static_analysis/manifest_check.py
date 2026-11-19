@@ -1,5 +1,5 @@
 """Phase 4: Manifest Analysis Engine"""
-from typing import Dict, Any, List
+from typing import Dict, Any
 from xml.etree import ElementTree as ET
 
 # Permission Database with Forensic Rationales and Threat Context

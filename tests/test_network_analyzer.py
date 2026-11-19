@@ -1,5 +1,4 @@
 import os
-import pytest
 from sandbox.network_analyzer import NetworkAnalyzer
 
 def test_network_analyzer_missing_file():

@@ -2,11 +2,8 @@
 Unit and integration tests for the Random Forest Static Malware Classifier.
 """
 
-import json
 import os
-import pytest
 from backend.app.static_analysis.ml_classifier import (
-    StaticMalwareClassifier,
     get_static_malware_classifier,
     classify_static_features,
 )

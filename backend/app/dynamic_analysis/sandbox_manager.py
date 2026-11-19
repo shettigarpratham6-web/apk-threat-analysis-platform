@@ -438,7 +438,6 @@ class SandboxManager:
         print(f"[BEHAVIOR LOG] App running live. Observing for {duration} seconds...")
 
         # Run light UI exploration early in the observation window
-        half_duration = max(2, duration // 2)
         time.sleep(2)
         self.run_ui_exploration(package_name, event_count=25)
         remaining = max(1, duration - 4)

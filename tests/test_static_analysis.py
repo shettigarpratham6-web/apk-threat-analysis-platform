@@ -1,8 +1,6 @@
 """Unit and integration tests for static analysis endpoints and correlation engine."""
 
-import os
-import sys
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient

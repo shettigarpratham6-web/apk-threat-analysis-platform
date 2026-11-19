@@ -7,7 +7,7 @@ import shutil
 import uuid
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
 
-from backend.app.static_analysis.apk_extractor import extract_apk_securely, hash_file, save_upload, validate_apk
+from backend.app.static_analysis.apk_extractor import extract_apk_securely, hash_file, save_upload
 from backend.app.static_analysis.manifest_check import analyze_manifest
 from backend.app.static_analysis.code_analysis import analyze_code
 from backend.app.static_analysis.resource_analysis import analyze_resources
@@ -74,7 +74,7 @@ async def upload_and_analyze_apk(file: UploadFile = File(...)):
         raise
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
-    except Exception as err:
+    except Exception:
         logger.exception("Upload processing failed")
         raise HTTPException(status_code=500, detail="Internal server error during upload.")
 

@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import tempfile
 import uuid
-from typing import Dict, Any, List, Set
+from typing import Dict, Any
 from loguru import logger
 
 from backend.app.static_analysis.string_entropy import detect_obfuscation
