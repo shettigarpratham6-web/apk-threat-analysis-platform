@@ -41,8 +41,8 @@ async def start_sandbox():
     Launches the Android emulator sandbox process and waits for ADB device readiness.
     """
     try:
-        sandbox.start_emulator()
-        sandbox.wait_until_ready()
+        await asyncio.to_thread(sandbox.start_emulator)
+        await asyncio.to_thread(sandbox.wait_until_ready)
         return {
             "status": "ready",
             "avd_name": sandbox.avd_name,
@@ -124,7 +124,7 @@ async def run_apk_safely(
         )
 
     try:
-        result = sandbox.run_full_dynamic_prep(file_path)
+        result = await asyncio.to_thread(sandbox.run_full_dynamic_prep, file_path)
         return {
             "apk_id": resolved_apk_id,
             "package_name": result["package_name"],
@@ -524,6 +524,7 @@ async def get_device_info():
     if not online:
         info = {
             "online": True,  # Report sandbox ready for UI interactivity
+            "simulated": True,
             "device": "android-sandbox-sim",
             "current_app": "Sandbox Lab",
             "avd_name": sandbox.avd_name,
@@ -554,6 +555,7 @@ async def get_device_info():
 
         return {
             "online": True,
+            "simulated": False,
             "device": "emulator-5554",
             "avd_name": sandbox.avd_name,
             "current_app": current_app,

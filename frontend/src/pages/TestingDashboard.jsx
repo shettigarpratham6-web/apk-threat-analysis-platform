@@ -18,7 +18,8 @@ import {
   checkServers,
   correlate,
   generateReport,
-  checkSystemHealth
+  checkSystemHealth,
+  getDeviceInfo
 } from "../api/client";
 
 const STATIC_STAGES = [
@@ -175,13 +176,30 @@ export default function TestingDashboard({ onReturnHome }) {
     setDynamicResults({});
     setCurrentStageIndex(0);
 
+    let stageIdx = 0;
     try {
       let currentApkId = apkId;
 
       // Stage 1: Sandbox Environment Setup
       updateStageStatus(true, 0, "running");
+      stageIdx = 0;
       setCurrentStageIndex(0);
-      const sandboxInfo = await startSandbox();
+      let sandboxInfo;
+      try {
+        sandboxInfo = await startSandbox();
+      } catch (startErr) {
+        if (!/did not finish booting|failed to reach ready/i.test(startErr.message)) throw startErr;
+        const deadline = Date.now() + 180000;
+        while (Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 3000));
+          const info = await getDeviceInfo();
+          if (info.online && !info.simulated) {
+            sandboxInfo = { status: "ready", avd_name: info.avd_name };
+            break;
+          }
+        }
+        if (!sandboxInfo) throw startErr;
+      }
       setDynamicResults(prev => ({ ...prev, 0: sandboxInfo }));
       updateStageStatus(true, 0, "completed");
 
@@ -194,6 +212,7 @@ export default function TestingDashboard({ onReturnHome }) {
 
       // Stage 2: Deploy APK to Sandbox
       updateStageStatus(true, 1, "running");
+      stageIdx = 1;
       setCurrentStageIndex(1);
       const deployRes = await runApk(currentApkId);
       const packageName = deployRes.package_name;
@@ -202,6 +221,7 @@ export default function TestingDashboard({ onReturnHome }) {
 
       // Stage 3: Dynamic Behavior Telemetry (mitmproxy + Frida)
       updateStageStatus(true, 2, "running");
+      stageIdx = 2;
       setCurrentStageIndex(2);
       const monitorRes = await monitorBehavior(currentApkId, packageName, dynamicDuration);
       setDynamicResults(prev => ({ ...prev, 2: monitorRes }));
@@ -209,6 +229,7 @@ export default function TestingDashboard({ onReturnHome }) {
 
       // Stage 4: Command & Control (C2) Detection
       updateStageStatus(true, 3, "running");
+      stageIdx = 3;
       setCurrentStageIndex(3);
       const c2Res = await detectC2(currentApkId);
       setDynamicResults(prev => ({ ...prev, 3: c2Res }));
@@ -216,6 +237,7 @@ export default function TestingDashboard({ onReturnHome }) {
 
       // Stage 5: Threat Intelligence Lookup
       updateStageStatus(true, 4, "running");
+      stageIdx = 4;
       setCurrentStageIndex(4);
       const repRes = await checkServers(currentApkId);
       setDynamicResults(prev => ({ ...prev, 4: repRes }));
@@ -223,6 +245,7 @@ export default function TestingDashboard({ onReturnHome }) {
 
       // Stage 6: Unified Risk Correlation & Forensics
       updateStageStatus(true, 5, "running");
+      stageIdx = 5;
       setCurrentStageIndex(5);
       const corrRes = await correlate(currentApkId);
       await generateReport(currentApkId);
@@ -231,7 +254,7 @@ export default function TestingDashboard({ onReturnHome }) {
 
     } catch (err) {
       setGlobalError(`Dynamic Analysis failed: ${err.message}`);
-      updateStageStatus(true, currentStageIndex, "error");
+      updateStageStatus(true, stageIdx, "error");
     } finally {
       setIsRunning(false);
     }

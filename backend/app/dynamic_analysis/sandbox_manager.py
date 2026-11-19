@@ -2,6 +2,7 @@
 
 import logging
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import time
@@ -33,6 +34,41 @@ class SandboxManager:
         self.headless = HEADLESS_MODE
         self._ready_cache_val: bool = False
         self._ready_cache_time: float = 0.0
+        self._log_path = None
+        self._log_fh = None
+
+    def _adb_boot_completed(self) -> bool:
+        """True when an emulator is attached and has finished booting."""
+        try:
+            res = subprocess.run(
+                [self.adb_path, "devices"],
+                capture_output=True, text=True, check=False, timeout=5,
+            )
+            serials = []
+            for line in res.stdout.splitlines():
+                parts = line.split()
+                if len(parts) == 2 and parts[1] == "device":
+                    serials.append(parts[0])
+            if not serials:
+                return False
+            serial = next((s for s in serials if s.startswith("emulator-")), serials[0])
+            boot = subprocess.run(
+                [self.adb_path, "-s", serial, "shell", "getprop", "sys.boot_completed"],
+                capture_output=True, text=True, check=False, timeout=5,
+            )
+            return boot.stdout.strip() == "1"
+        except Exception as exc:
+            logger.debug(f"ADB readiness probe failed: {exc}")
+            return False
+
+    def _emulator_log_tail(self, lines: int = 15) -> str:
+        try:
+            if self._log_path and Path(self._log_path).exists():
+                text = Path(self._log_path).read_text(errors="ignore")
+                return "\n".join(text.splitlines()[-lines:])
+        except Exception:
+            pass
+        return "(no emulator log available)"
 
     def _cleanup_stale_avd_locks(self) -> None:
         """Removes stale .lock files and directories for the current AVD so emulator starts cleanly."""
@@ -60,17 +96,7 @@ class SandboxManager:
         if not force and (now - self._ready_cache_time < 2.0):
             return self._ready_cache_val
 
-        ready = False
-        try:
-            res = subprocess.run([self.adb_path, "devices"], capture_output=True, text=True, check=False, timeout=3)
-            output = res.stdout if res.returncode == 0 else ""
-            lines = [l.strip() for l in output.strip().splitlines() if l.strip() and not l.startswith("*") and not l.startswith("List of")]
-            active = [l for l in lines if "\tdevice" in l or l.endswith(" device")]
-            if active:
-                boot = subprocess.run([self.adb_path, "shell", "getprop", "sys.boot_completed"], capture_output=True, text=True, check=False, timeout=3)
-                ready = (boot.stdout.strip() == "1")
-        except Exception:
-            ready = False
+        ready = self._adb_boot_completed()
 
         self._ready_cache_val = ready
         self._ready_cache_time = now
@@ -95,7 +121,7 @@ class SandboxManager:
         # Clean stale lock files before launching
         self._cleanup_stale_avd_locks()
 
-        cmd = [self.emulator_path, "-avd", self.avd_name, "-no-snapshot-save"]
+        cmd = [self.emulator_path, "-avd", self.avd_name, "-no-snapshot-save", "-no-boot-anim"]
         if self.headless:
             cmd.append("-no-window")
 
@@ -103,10 +129,15 @@ class SandboxManager:
         print(f"[SANDBOX LOG] Launching emulator: {' '.join(cmd)}")
 
         try:
+            log_dir = Path(__file__).resolve().parents[2] / "results"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            self._log_path = log_dir / "emulator.log"
+            self._log_fh = open(self._log_path, "ab")
+
             self.process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=self._log_fh,
+                stderr=subprocess.STDOUT,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
             )
         except Exception as exc:
@@ -131,35 +162,28 @@ class SandboxManager:
         print(f"[SANDBOX LOG] Polling ADB status for emulator readiness (timeout={timeout}s)...")
 
         while time.time() - start_time < timeout:
-            try:
-                res = subprocess.run(
-                    [self.adb_path, "devices"],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                output = res.stdout if res.returncode == 0 else ""
-                lines = [l.strip() for l in output.strip().splitlines() if l.strip() and not l.startswith("*") and not l.startswith("List of")]
-                active_devices = [l for l in lines if "\tdevice" in l or l.endswith(" device")]
-
-                if active_devices:
-                    # Check if boot is completed
-                    boot_res = subprocess.run(
-                        [self.adb_path, "shell", "getprop", "sys.boot_completed"],
-                        capture_output=True,
-                        text=True,
-                        check=False,
+            # A non-zero exit means the emulator crashed; exit code 0 can be a launcher that
+            # handed off to the real emulator process, so keep waiting in that case.
+            if self.process is not None:
+                code = self.process.poll()
+                if code not in (None, 0):
+                    raise RuntimeError(
+                        f"Emulator process exited with code {code} before boot finished.\n"
+                        f"{self._emulator_log_tail()}"
                     )
-                    if boot_res.stdout.strip() == "1":
-                        logger.info("Emulator ADB status: READY (boot completed)")
-                        print("[SANDBOX LOG] Emulator ADB status: READY (boot completed)")
-                        return True
-            except Exception as exc:
-                logger.warning(f"ADB polling encountered transient error: {exc}")
-
+            if self._adb_boot_completed():
+                logger.info("Emulator ADB status: READY (boot completed)")
+                print("[SANDBOX LOG] Emulator ADB status: READY (boot completed)")
+                return True
             time.sleep(2)
 
-        err_msg = f"Emulator failed to reach ready state within {timeout} seconds."
+        if self._adb_boot_completed():
+            return True
+
+        err_msg = (
+            f"Emulator did not finish booting within {timeout} seconds. "
+            f"Increase BOOT_TIMEOUT or check hardware acceleration.\n{self._emulator_log_tail()}"
+        )
         logger.error(err_msg)
         print(f"[SANDBOX ERROR] {err_msg}")
         raise TimeoutError(err_msg)
@@ -327,6 +351,13 @@ class SandboxManager:
                     pass
             finally:
                 self.process = None
+
+        if self._log_fh is not None:
+            try:
+                self._log_fh.close()
+            except Exception:
+                pass
+            self._log_fh = None
 
         logger.info("Emulator process stopped.")
         print("[SANDBOX LOG] Emulator process terminated cleanly.")

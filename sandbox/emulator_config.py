@@ -39,4 +39,4 @@ HEADLESS_MODE = os.getenv("HEADLESS_MODE", "false").lower() in ("true", "1", "ye
 SNAPSHOT_NAME = os.getenv("SNAPSHOT_NAME", "clean_state")
 
 # Timeout in seconds to wait for emulator boot
-BOOT_TIMEOUT = int(os.getenv("BOOT_TIMEOUT", "120"))
+BOOT_TIMEOUT = int(os.getenv("BOOT_TIMEOUT", "300"))

@@ -125,7 +125,7 @@ export default function LiveVirtualDevice({ activePackageName, isRunning }) {
             boxShadow: isLiveStreaming ? "0 0 10px var(--neon-green)" : "none"
           }}></span>
           <span style={{ fontWeight: "900", fontSize: "13px", color: "var(--text-main)", letterSpacing: "1px", fontFamily: "var(--font-mono)" }}>
-            LIVE VIRTUAL DEVICE
+            {deviceInfo.simulated ? "SIMULATED DISPLAY - emulator offline" : "LIVE VIRTUAL DEVICE"}
           </span>
           <span style={{
             background: "#050505",
