@@ -31,7 +31,7 @@ export default function RiskBanner({ correlationData }) {
           {factors && factors.length > 0 ? (
             factors.map((factor, idx) => (
               <li key={idx} className="factor-item">
-                <span className="factor-bullet">•</span> {factor}
+                <span className="factor-bullet">-</span> {factor}
               </li>
             ))
           ) : (
@@ -44,7 +44,7 @@ export default function RiskBanner({ correlationData }) {
           {recommendations && recommendations.length > 0 ? (
             recommendations.map((rec, idx) => (
               <li key={idx} className="factor-item">
-                <span className="factor-bullet">✅</span> {rec}
+                <span className="factor-bullet">[OK]</span> {rec}
               </li>
             ))
           ) : (

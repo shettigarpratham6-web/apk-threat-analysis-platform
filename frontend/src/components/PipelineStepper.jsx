@@ -34,7 +34,7 @@ export default function PipelineStepper({
               style={{ cursor: (hasApk && stage.status === "completed") ? "pointer" : "default" }}
             >
               <div className="stepper-icon">
-                {stage.status === "completed" ? "✓" : stage.status === "running" ? "⏳" : stage.status === "error" ? "✕" : index + 1}
+                {stage.status === "completed" ? "OK" : stage.status === "running" ? "..." : stage.status === "error" ? "X" : index + 1}
               </div>
               <div className="stepper-content">
                 <div className="stepper-title">{stage.title}</div>

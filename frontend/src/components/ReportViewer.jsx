@@ -32,19 +32,19 @@ export default function ReportViewer({ apkId }) {
         {!loading && !error && (
             <div className="report-actions" style={{display: "flex", gap: "10px", flexWrap: "wrap"}}>
               <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">
-                ↗ View HTML
+                View HTML
               </a>
               <a href={downloadUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm">
-                📥 Download PDF
+                Download PDF
               </a>
               <a href={jsonUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">
-                📥 Download JSON
+                Download JSON
               </a>
               <a href={iocJsonUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">
-                📥 Download IOC JSON
+                Download IOC JSON
               </a>
               <a href={iocCsvUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">
-                📥 Download IOC CSV
+                Download IOC CSV
               </a>
             </div>
         )}
@@ -53,8 +53,7 @@ export default function ReportViewer({ apkId }) {
       <div className="iframe-container" style={{ minHeight: "600px", border: "1px solid var(--card-border)", borderRadius: "0", overflow: "hidden", marginTop: "15px" }}>
         {loading && (
             <div style={{padding: "50px", textAlign: "center"}}>
-                <div style={{fontSize: "40px", marginBottom: "20px"}}>⏳</div>
-                <h3>Generating Professional Forensic Report...</h3>
+                <h3>Generating Forensic Report...</h3>
                 <p className="text-muted">Compiling PDF and rendering HTML artifacts.</p>
             </div>
         )}

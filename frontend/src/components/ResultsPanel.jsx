@@ -21,7 +21,7 @@ export default function ResultsPanel({ stageName, data, stageId }) {
           const isDir = node.endsWith("/");
           return (
             <div key={i} style={{ paddingLeft: `${depth * 20}px` }}>
-              {isDir ? "📁 " : "📄 "}{node}
+              {isDir ? "[DIR] " : "[FILE] "}{node}
             </div>
           );
         })}
@@ -121,9 +121,9 @@ export default function ResultsPanel({ stageName, data, stageId }) {
           <h4>Extracted File Tree</h4>
           <div style={{background: "#1e1e1e", color: "#d4d4d4", padding: "15px", borderRadius: "8px", maxHeight: "400px", overflowY: "auto"}}>
             <div>suspicious_app.apk</div>
-            <div>│</div>
-            <div>▼ unzip</div>
-            <div>│</div>
+            <div>|</div>
+            <div>v unzip</div>
+            <div>|</div>
             {renderTree(data.extraction?.tree)}
           </div>
         </div>
@@ -173,14 +173,14 @@ export default function ResultsPanel({ stageName, data, stageId }) {
             }}>
               <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px"}}>
                 <h4 style={{margin: 0, display: "flex", alignItems: "center", gap: "8px", color: "var(--neon-green)", fontSize: "14px", fontFamily: "var(--font-mono)", textTransform: "uppercase"}}>
-                  <span>🤖</span> AI De-obfuscation & Deep Code Insight
+                  AI De-obfuscation & Deep Code Insight
                 </h4>
                 <span style={{fontSize: "11px", background: "#050505", border: "1px solid var(--neon-green)", color: "var(--neon-green)", padding: "2px 8px", borderRadius: "0", fontFamily: "monospace"}}>
                   qwen/qwen-2.5-coder-32b-instruct
                 </span>
               </div>
               <div style={{fontSize: "12px", color: "#94a3b8", marginBottom: "8px"}}>
-                <strong>Target Class:</strong> <span className="code-font" style={{color: "#e2e8f0"}}>{aiInsight.class_name}</span> (Line {aiInsight.line_number || "N/A"}) • <strong>Trigger API:</strong> <code style={{color: "#f43f5e"}}>{aiInsight.api}</code>
+                <strong>Target Class:</strong> <span className="code-font" style={{color: "#e2e8f0"}}>{aiInsight.class_name}</span> (Line {aiInsight.line_number || "N/A"}) - <strong>Trigger API:</strong> <code style={{color: "#f43f5e"}}>{aiInsight.api}</code>
               </div>
               <div style={{fontSize: "13px", lineHeight: "1.6", color: "#e2e8f0", whiteSpace: "pre-line"}}>
                 {aiInsight.explanation}
@@ -189,7 +189,7 @@ export default function ResultsPanel({ stageName, data, stageId }) {
           )}
 
           <h4>Network Indicators</h4>
-          <p>URLs: {data.code_analysis?.network_indicators?.urls?.length || 0} • IPs: {data.code_analysis?.network_indicators?.ipv4?.length || 0}</p>
+          <p>URLs: {data.code_analysis?.network_indicators?.urls?.length || 0} - IPs: {data.code_analysis?.network_indicators?.ipv4?.length || 0}</p>
           
           <h4>Suspicious APIs ({data.code_analysis?.suspicious_apis?.length || 0})</h4>
           <table className="results-table">
@@ -287,10 +287,10 @@ export default function ResultsPanel({ stageName, data, stageId }) {
               <div style={{marginTop: "24px", padding: "16px", borderRadius: "8px", background: "rgba(59, 130, 246, 0.05)", border: "1px solid rgba(59, 130, 246, 0.2)"}}>
                 <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px"}}>
                   <h4 style={{margin: 0, display: "flex", alignItems: "center", gap: "8px", color: "#60a5fa"}}>
-                    <span>🧠</span> CodeBERT Suspicious Code Semantic Similarity ({codebert?.model || "microsoft/codebert-base"})
+                    CodeBERT Suspicious Code Semantic Similarity ({codebert?.model || "microsoft/codebert-base"})
                   </h4>
                   <span className={`badge ${codebert?.status === "active" ? "badge-primary" : "badge-warning"}`} style={{fontSize: "11px", padding: "4px 8px"}}>
-                    {codebert?.status === "active" ? "Model Active • 16GB RAM Optimized" : "Heuristic Fallback"}
+                    {codebert?.status === "active" ? "Model Active - 16GB RAM Optimized" : "Heuristic Fallback"}
                   </span>
                 </div>
 
@@ -335,7 +335,7 @@ export default function ResultsPanel({ stageName, data, stageId }) {
                             )}
                             {m.llm_explanation && (
                               <div style={{marginTop: "6px", padding: "8px", borderRadius: "6px", background: "rgba(124, 58, 237, 0.1)", border: "1px solid rgba(124, 58, 237, 0.3)"}}>
-                                <div style={{fontSize: "10px", fontWeight: "bold", color: "#c084fc", marginBottom: "2px"}}>🤖 LLM Reverse-Engineering Insight (Qwen-2.5-Coder):</div>
+                                <div style={{fontSize: "10px", fontWeight: "bold", color: "#c084fc", marginBottom: "2px"}}>LLM Reverse-Engineering Insight (Qwen-2.5-Coder):</div>
                                 <div style={{fontSize: "11px", color: "#e2e8f0", lineHeight: "1.4", whiteSpace: "pre-line"}}>{m.llm_explanation}</div>
                               </div>
                             )}
@@ -432,7 +432,7 @@ export default function ResultsPanel({ stageName, data, stageId }) {
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
                 <h4 style={{ margin: 0, display: "flex", alignItems: "center", gap: "8px", color: "var(--neon-green)", fontSize: "15px", fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>
-                  <span>🛡️</span> AI Threat Intelligence Executive Summary
+                  AI Threat Intelligence Executive Summary
                 </h4>
                 <span style={{ fontSize: "11px", background: "#050505", border: "1px solid var(--neon-green)", color: "var(--neon-green)", padding: "3px 10px", borderRadius: "0", fontFamily: "monospace" }}>
                   meta-llama/llama-3.3-70b-instruct
@@ -446,7 +446,7 @@ export default function ResultsPanel({ stageName, data, stageId }) {
           {data.ml_classification && (
             <div style={{marginTop: "15px", marginBottom: "20px", padding: "14px", borderRadius: "8px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)"}}>
               <h4 style={{margin: "0 0 10px 0", display: "flex", alignItems: "center", gap: "8px"}}>
-                <span>🤖</span> Machine Learning Malware Classifier (Random Forest)
+                Machine Learning Malware Classifier (Random Forest)
               </h4>
               <div className="metrics-grid" style={{marginBottom: "10px"}}>
                 <div className="metric-box">
@@ -481,7 +481,7 @@ export default function ResultsPanel({ stageName, data, stageId }) {
           {codebertData && (
             <div style={{marginTop: "15px", marginBottom: "20px", padding: "14px", borderRadius: "8px", background: "rgba(59, 130, 246, 0.05)", border: "1px solid rgba(59, 130, 246, 0.2)"}}>
               <h4 style={{margin: "0 0 10px 0", display: "flex", alignItems: "center", gap: "8px", color: "#60a5fa"}}>
-                <span>🧠</span> CodeBERT Suspicious Code Semantic Analysis
+                CodeBERT Suspicious Code Semantic Analysis
               </h4>
               <div className="metrics-grid" style={{marginBottom: "10px"}}>
                 <div className="metric-box">
@@ -627,7 +627,7 @@ export default function ResultsPanel({ stageName, data, stageId }) {
           {/* High Priority Runtime Interceptions */}
           {sms.length > 0 && (
             <div style={{marginBottom: "16px", padding: "14px", borderRadius: "8px", background: "rgba(239, 68, 68, 0.1)", border: "1px solid #ef4444"}}>
-              <h5 style={{color: "#f87171", margin: "0 0 8px 0"}}>⚠️ Intercepted Outbound SMS Transmission ({sms.length})</h5>
+              <h5 style={{color: "#f87171", margin: "0 0 8px 0"}}>[WARNING] Intercepted Outbound SMS Transmission ({sms.length})</h5>
               {sms.map((s, i) => (
                 <div key={i} style={{fontSize: "12px", marginBottom: "4px"}}>
                   <strong>Destination:</strong> <span className="code-font">{s.details?.destination || s.args?.[0]}</span> | <strong>Preview:</strong> <em>"{s.details?.snippet || s.args?.[1]}"</em>
@@ -638,7 +638,7 @@ export default function ResultsPanel({ stageName, data, stageId }) {
 
           {procs.length > 0 && (
             <div style={{marginBottom: "16px", padding: "14px", borderRadius: "8px", background: "rgba(249, 115, 22, 0.1)", border: "1px solid #f97316"}}>
-              <h5 style={{color: "#fb923c", margin: "0 0 8px 0"}}>⚠️ System Process & Shell Execution ({procs.length})</h5>
+              <h5 style={{color: "#fb923c", margin: "0 0 8px 0"}}>[WARNING] System Process & Shell Execution ({procs.length})</h5>
               {procs.map((p, i) => (
                 <div key={i} style={{fontSize: "12px", marginBottom: "4px"}}>
                   <strong>Command:</strong> <code className="code-font">{p.details?.command || (p.args || []).join(" ")}</code>
@@ -649,7 +649,7 @@ export default function ResultsPanel({ stageName, data, stageId }) {
 
           {dexs.length > 0 && (
             <div style={{marginBottom: "16px", padding: "14px", borderRadius: "0", background: "rgba(0, 255, 36, 0.06)", border: "1px solid var(--neon-green)"}}>
-              <h5 style={{color: "var(--neon-green)", margin: "0 0 8px 0", fontFamily: "var(--font-mono)", textTransform: "uppercase"}}>⚠️ Dynamic DexClassLoader Invocations ({dexs.length})</h5>
+              <h5 style={{color: "var(--neon-green)", margin: "0 0 8px 0", fontFamily: "var(--font-mono)", textTransform: "uppercase"}}>[WARNING] Dynamic DexClassLoader Invocations ({dexs.length})</h5>
               {dexs.map((d, i) => (
                 <div key={i} style={{fontSize: "12px", marginBottom: "4px"}}>
                   <strong>Loaded Path:</strong> <code className="code-font">{d.details?.dexPath || d.args?.[0]}</code>
@@ -808,7 +808,7 @@ export default function ResultsPanel({ stageName, data, stageId }) {
           {/* DGA Domains Alert */}
           {((data.dga_detections && data.dga_detections.length > 0) || (c2.dga_detections && c2.dga_detections.length > 0)) && (
             <div style={{marginBottom: "20px", padding: "14px", borderRadius: "8px", background: "rgba(239, 68, 68, 0.12)", border: "1px solid #ef4444"}}>
-              <h5 style={{color: "#f87171", margin: "0 0 8px 0"}}>🚨 Algorithmically Generated Domains (DGA) Detected</h5>
+              <h5 style={{color: "#f87171", margin: "0 0 8px 0"}}>[ALERT] Algorithmically Generated Domains (DGA) Detected</h5>
               <table className="results-table">
                 <thead>
                   <tr>
@@ -910,7 +910,7 @@ export default function ResultsPanel({ stageName, data, stageId }) {
           {/* Confirmed Multi-Vector Correlated Threats */}
           {confirmed.length > 0 && (
             <div style={{marginBottom: "20px", padding: "16px", borderRadius: "0", background: "rgba(239, 68, 68, 0.12)", border: "1px solid #ef4444"}}>
-              <h5 style={{color: "#f87171", margin: "0 0 8px 0", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.5px"}}>🚨 Confirmed Multi-Vector Threats (Static Intent + Runtime Reality)</h5>
+              <h5 style={{color: "#f87171", margin: "0 0 8px 0", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.5px"}}>[ALERT] Confirmed Multi-Vector Threats (Static Intent + Runtime Reality)</h5>
               <ul style={{margin: 0, paddingLeft: "20px", color: "#fca5a5", fontSize: "13px"}}>
                 {confirmed.map((ct, i) => (
                   <li key={i} style={{marginBottom: "4px"}}><strong>{ct}</strong></li>
@@ -922,7 +922,7 @@ export default function ResultsPanel({ stageName, data, stageId }) {
           {/* Unified LLM Narrative */}
           {narrative && !narrative.startsWith("[") && (
             <div style={{marginBottom: "20px", padding: "18px 20px", borderRadius: "0", background: "rgba(0, 255, 36, 0.05)", border: "1px solid var(--neon-green)"}}>
-              <h5 style={{color: "var(--neon-green)", margin: "0 0 10px 0", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "1px"}}>🧠 Executive Forensic Threat Narrative (OpenRouter LLaMA-3.3-70B)</h5>
+              <h5 style={{color: "var(--neon-green)", margin: "0 0 10px 0", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "1px"}}>Executive Forensic Threat Narrative (OpenRouter LLaMA-3.3-70B)</h5>
               <div style={{fontSize: "13.5px", lineHeight: "1.7", color: "var(--text-main)", whiteSpace: "pre-line"}}>
                 {narrative}
               </div>
@@ -941,7 +941,7 @@ export default function ResultsPanel({ stageName, data, stageId }) {
               rel="noreferrer"
               className="btn btn-primary"
             >
-              📄 View Interactive HTML Report
+              View Interactive HTML Report
             </a>
             <a
               href={`http://localhost:8000/api/report/download/${data.apk_id}?format=pdf`}
@@ -949,7 +949,7 @@ export default function ResultsPanel({ stageName, data, stageId }) {
               rel="noreferrer"
               className="btn btn-secondary"
             >
-              📥 Download PDF Report
+              Download PDF Report
             </a>
             <a
               href={`http://localhost:8000/api/report/download/${data.apk_id}?format=json`}
@@ -957,7 +957,7 @@ export default function ResultsPanel({ stageName, data, stageId }) {
               rel="noreferrer"
               className="btn btn-secondary"
             >
-              📊 Download JSON Telemetry
+              Download JSON Telemetry
             </a>
           </div>
         </div>

@@ -57,7 +57,7 @@ export default function UploadPanel({ onUpload, onDynamicUpload, isRunning }) {
             className="btn btn-primary"
             style={{ width: "100%", justifyContent: "center" }}
           >
-            {isRunning ? "Pipeline Running..." : "🔍 Run Static Decompilation"}
+            {isRunning ? "Pipeline Running..." : "Run Static Decompilation"}
           </button>
 
           <button
@@ -66,7 +66,7 @@ export default function UploadPanel({ onUpload, onDynamicUpload, isRunning }) {
             className="btn btn-secondary"
             style={{ width: "100%", justifyContent: "center" }}
           >
-            🚀 Launch in Fake Phone Sandbox
+            Launch in Fake Phone Sandbox
           </button>
         </div>
       </div>

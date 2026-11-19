@@ -34,6 +34,19 @@ const STATIC_STAGES = [
   { id: "report", title: "10. Threat Report", subtitle: "Forensic documentation", status: "pending" },
 ];
 
+const hasData = {
+  upload: (d) => Boolean(d.metadata),
+  extract: (d) => Boolean(d.extraction),
+  manifest: (d) => Boolean(d.manifest_analysis && !d.manifest_analysis.error),
+  permissions: (d) => Boolean(d.manifest_analysis?.permissions),
+  code: (d) => Boolean(d.code_analysis && !d.code_analysis.error),
+  resources: (d) => Boolean(d.resource_analysis && !d.resource_analysis.error),
+  native: (d) => Boolean(d.native_library_analysis && !d.native_library_analysis.error),
+  yara: (d) => Array.isArray(d.yara_matches),
+  risk: (d) => Boolean(d.risk_analysis),
+  report: (d) => Boolean(d.apk_id),
+};
+
 const DYNAMIC_STAGES = [
   { id: "dyn_prep", title: "1. Sandbox Environment", subtitle: "Verify & Start Android Emulator", status: "pending" },
   { id: "dyn_deploy", title: "2. Deploy Target APK", subtitle: "Install APK & launch in sandbox", status: "pending" },
@@ -59,9 +72,14 @@ export default function TestingDashboard({ onReturnHome }) {
   const [dynamicDuration, setDynamicDuration] = useState(15);
 
   useEffect(() => {
-    checkSystemHealth()
-      .then(() => setBackendOnline(true))
-      .catch(() => setBackendOnline(false));
+    const check = () => {
+      checkSystemHealth()
+        .then(() => setBackendOnline(true))
+        .catch(() => setBackendOnline(false));
+    };
+    check();
+    const interval = setInterval(check, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleHomeClick = () => {
@@ -97,24 +115,12 @@ export default function TestingDashboard({ onReturnHome }) {
     setUploadedFile(file);
     setGlobalError(null);
     setIsRunning(true);
-    setStaticStages(STATIC_STAGES.map(s => ({ ...s, status: "pending" })));
+    setStaticStages(STATIC_STAGES.map((s) => ({ ...s, status: "running" })));
     setStageResults({});
     setCurrentStageIndex(0);
-    updateStageStatus(false, 0, "running");
-
-    let fakeIdx = 1;
-    const fakeInterval = setInterval(() => {
-      if (fakeIdx < 7) {
-        updateStageStatus(false, fakeIdx - 1, "completed");
-        updateStageStatus(false, fakeIdx, "running");
-        setCurrentStageIndex(fakeIdx);
-        fakeIdx++;
-      }
-    }, 2500);
 
     try {
       const data = await uploadAndAnalyzeStatic(file);
-      clearInterval(fakeInterval);
       setApkId(data.apk_id);
 
       const mappedResults = {
@@ -124,7 +130,7 @@ export default function TestingDashboard({ onReturnHome }) {
         3: { permissions: data.manifest_analysis?.permissions },
         4: {
           code_analysis: data.code_analysis,
-          codebert_similarity: data.codebert_similarity || data.code_analysis?.codebert_similarity
+          codebert_similarity: data.codebert_similarity || data.code_analysis?.codebert_similarity,
         },
         5: { resource_analysis: data.resource_analysis },
         6: { native_library_analysis: data.native_library_analysis },
@@ -134,25 +140,23 @@ export default function TestingDashboard({ onReturnHome }) {
           certificate_analysis: data.certificate_analysis,
           iocs: data.iocs,
           ml_classification: data.ml_classification,
-          codebert_similarity: data.codebert_similarity || data.code_analysis?.codebert_similarity
+          codebert_similarity: data.codebert_similarity || data.code_analysis?.codebert_similarity,
         },
-        9: { report: true, apkId: data.apk_id }
+        9: { report: true, apkId: data.apk_id },
       };
 
       setStageResults(mappedResults);
 
-      const delay = (ms) => new Promise(res => setTimeout(res, ms));
-      for (let i = fakeIdx - 1; i < STATIC_STAGES.length; i++) {
-        setCurrentStageIndex(i);
-        updateStageStatus(false, i, "running");
-        await delay(400);
-        updateStageStatus(false, i, "completed");
-      }
-      setCurrentStageIndex(9);
+      setStaticStages(
+        STATIC_STAGES.map((stage) => ({
+          ...stage,
+          status: hasData[stage.id]?.(data) ? "completed" : "error",
+        }))
+      );
+      setCurrentStageIndex(STATIC_STAGES.length - 1);
     } catch (err) {
-      clearInterval(fakeInterval);
       setGlobalError(`Static Analysis failed: ${err.message}`);
-      updateStageStatus(false, Math.max(0, fakeIdx - 1), "error");
+      setStaticStages(STATIC_STAGES.map((stage) => ({ ...stage, status: "error" })));
     } finally {
       setIsRunning(false);
     }
@@ -247,13 +251,12 @@ export default function TestingDashboard({ onReturnHome }) {
           onClick={handleHomeClick}
           title="Return to Landing Page"
         >
-          <span className="brand-icon">✳</span>
           <div>
             <h1 className="brand-title">
               APK THREAT <span>ANALYSIS</span>
             </h1>
             <p className="brand-subtitle">
-              ANDROID SECURITY • STATIC DECOMPILATION & DYNAMIC SANDBOX
+              ANDROID SECURITY - STATIC DECOMPILATION & DYNAMIC SANDBOX
             </p>
           </div>
         </div>
@@ -263,7 +266,7 @@ export default function TestingDashboard({ onReturnHome }) {
             className="cyber-back-btn"
             onClick={handleHomeClick}
           >
-            ← HOME
+            HOME
           </button>
 
           <a
@@ -291,14 +294,14 @@ export default function TestingDashboard({ onReturnHome }) {
           onClick={() => { setActiveTab("static"); setCurrentStageIndex(0); }}
           className={`nav-tab-btn ${!isDynamic ? "active" : ""}`}
         >
-          🔍 STATIC ENGINE (10 STAGES)
+          STATIC ENGINE (10 STAGES)
         </button>
 
         <button
           onClick={() => { setActiveTab("dynamic"); setCurrentStageIndex(0); }}
           className={`nav-tab-btn ${isDynamic ? "active" : ""}`}
         >
-          🧪 DYNAMIC SANDBOX & C2 (6 STAGES)
+          DYNAMIC SANDBOX & C2 (6 STAGES)
         </button>
 
         {apkId && (
@@ -358,7 +361,7 @@ export default function TestingDashboard({ onReturnHome }) {
                     </div>
                   )}
                   <p style={{ fontSize: "11px", color: "var(--neon-green)", margin: "8px 0 0 0", fontFamily: "var(--font-mono)" }}>
-                    ⚡ Uploading an APK automatically launches the Android sandbox & opens the phone window.
+                    Uploading an APK automatically launches the Android sandbox and opens the phone window.
                   </p>
                 </div>
 
@@ -393,7 +396,7 @@ export default function TestingDashboard({ onReturnHome }) {
                   className="btn btn-primary"
                   style={{ width: "100%", justifyContent: "center" }}
                 >
-                  {isRunning ? "⏳ Sandbox Running..." : "🚀 Launch Sandbox (Opens Phone)"}
+                  {isRunning ? "Sandbox Running..." : "Launch Sandbox (Opens Phone)"}
                 </button>
               </div>
             )}

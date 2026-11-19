@@ -150,7 +150,7 @@ export default function LiveVirtualDevice({ activePackageName, isRunning }) {
               borderRadius: "0"
             }}
           >
-            {isLiveStreaming ? "🟢 LIVE (1S)" : "⏸️ PAUSED"}
+            {isLiveStreaming ? "LIVE (1S)" : "PAUSED"}
           </button>
           <button
             onClick={() => { setScreenUrl(getDeviceScreenUrl()); handleWake(); }}
@@ -161,7 +161,7 @@ export default function LiveVirtualDevice({ activePackageName, isRunning }) {
               borderRadius: "0"
             }}
           >
-            ⚡ WAKE
+            WAKE
           </button>
         </div>
       </div>
@@ -181,7 +181,7 @@ export default function LiveVirtualDevice({ activePackageName, isRunning }) {
         justifyContent: "space-between"
       }}>
         <span>FOCUSED: <strong style={{ color: "var(--neon-green)" }}>{deviceInfo.current_app || activePackageName || "Home Launcher"}</strong></span>
-        <span>DISPLAY: <strong style={{ color: "var(--text-main)" }}>1080×2220</strong></span>
+        <span>DISPLAY: <strong style={{ color: "var(--text-main)" }}>1080x2220</strong></span>
       </div>
 
       {/* Realistic Smartphone Chassis */}
@@ -245,7 +245,6 @@ export default function LiveVirtualDevice({ activePackageName, isRunning }) {
               padding: "20px",
               textAlign: "center"
             }}>
-              <span style={{ fontSize: "36px", marginBottom: "8px" }}>📱</span>
               <p style={{ margin: 0, fontWeight: "600" }}>Device Connecting...</p>
               <button
                 onClick={() => { setScreenError(false); setScreenUrl(getDeviceScreenUrl()); }}
@@ -311,7 +310,7 @@ export default function LiveVirtualDevice({ activePackageName, isRunning }) {
               padding: "4px 12px"
             }}
           >
-            ◀
+            &lt;
           </button>
 
           {/* Home Button */}
@@ -327,7 +326,7 @@ export default function LiveVirtualDevice({ activePackageName, isRunning }) {
               padding: "4px 12px"
             }}
           >
-            ●
+            O
           </button>
 
           {/* Recents Button */}
@@ -343,7 +342,7 @@ export default function LiveVirtualDevice({ activePackageName, isRunning }) {
               padding: "4px 12px"
             }}
           >
-            ◽
+            []
           </button>
         </div>
       </div>
@@ -355,7 +354,7 @@ export default function LiveVirtualDevice({ activePackageName, isRunning }) {
         color: "#64748b",
         textAlign: "center"
       }}>
-        💡 Click on the phone screen to tap & interact in real time during analysis.
+        Click on the phone screen to tap & interact in real time during analysis.
       </p>
     </div>
   );
