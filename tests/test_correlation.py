@@ -78,7 +78,7 @@ def test_correlation_analyze_endpoint():
     results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend", "results"))
     os.makedirs(results_dir, exist_ok=True)
 
-    test_apk_id = "test_correlation_9999"
+    test_apk_id = "44444444-4444-4444-4444-444444444444"
     static_file = os.path.join(results_dir, f"{test_apk_id}_static.json")
     dynamic_file = os.path.join(results_dir, f"{test_apk_id}_dynamic.json")
     c2_file = os.path.join(results_dir, f"{test_apk_id}_c2.json")

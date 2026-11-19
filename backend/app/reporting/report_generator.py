@@ -4,8 +4,9 @@ import json
 import logging
 import os
 from typing import Any, Dict
+from xml.sax.saxutils import escape as xml_escape
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 logger = logging.getLogger("report_generator")
 
@@ -37,10 +38,14 @@ def _fallback_pdf_generation(context: Dict[str, Any], pdf_path: str) -> None:
         story.append(Spacer(1, 14))
         
         meta = context.get("metadata", {})
-        story.append(Paragraph(f"<b>APK Name:</b> {meta.get('filename')} <br/>"
-                               f"<b>Package Name:</b> {context.get('manifest_analysis', {}).get('metadata', {}).get('package_name', 'Unknown')} <br/>"
-                               f"<b>APK SHA256:</b> {meta.get('sha256')} <br/>"
-                               f"<b>Date:</b> {context.get('generated_date')}", body_style))
+        filename = xml_escape(str(meta.get("filename") or ""))
+        pkg_name = xml_escape(str(context.get("manifest_analysis", {}).get("metadata", {}).get("package_name", "Unknown")))
+        sha256 = xml_escape(str(meta.get("sha256") or ""))
+        gen_date = xml_escape(str(context.get("generated_date") or ""))
+        story.append(Paragraph(f"<b>APK Name:</b> {filename} <br/>"
+                               f"<b>Package Name:</b> {pkg_name} <br/>"
+                               f"<b>APK SHA256:</b> {sha256} <br/>"
+                               f"<b>Date:</b> {gen_date}", body_style))
         story.append(Spacer(1, 20))
 
         # Risk Score Section
@@ -53,7 +58,7 @@ def _fallback_pdf_generation(context: Dict[str, Any], pdf_path: str) -> None:
         elif r_score >= 60: banner_color = "#ea580c"
         elif r_score >= 40: banner_color = "#ca8a04"
 
-        banner_table = Table([[f"THREAT LEVEL: {r_level.upper()}", f"SCORE: {r_score} / 100"]], colWidths=[380, 160])
+        banner_table = Table([[f"THREAT LEVEL: {xml_escape(str(r_level)).upper()}", f"SCORE: {r_score} / 100"]], colWidths=[380, 160])
         banner_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(banner_color)),
             ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
@@ -72,7 +77,7 @@ def _fallback_pdf_generation(context: Dict[str, Any], pdf_path: str) -> None:
             story.append(Spacer(1, 4))
             conf_data = [["Status", "Verified Threat Vector"]]
             for c in confirmed:
-                conf_data.append(["CONFIRMED", c])
+                conf_data.append(["CONFIRMED", xml_escape(str(c))])
             conf_table = Table([[Paragraph(f"<b>{c[0]}</b>", body_style), Paragraph(c[1], body_style)] for c in conf_data], colWidths=[90, 450])
             conf_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#dc2626")),
@@ -91,7 +96,7 @@ def _fallback_pdf_generation(context: Dict[str, Any], pdf_path: str) -> None:
             story.append(Spacer(1, 6))
             for para in str(narrative).split("\n\n"):
                 if para.strip():
-                    story.append(Paragraph(para.strip(), body_style))
+                    story.append(Paragraph(xml_escape(para.strip()), body_style))
                     story.append(Spacer(1, 6))
             story.append(Spacer(1, 10))
         else:
@@ -110,7 +115,7 @@ def _fallback_pdf_generation(context: Dict[str, Any], pdf_path: str) -> None:
         if not factors:
             story.append(Paragraph("No significant risk factors found.", body_style))
         for factor in factors:
-            story.append(Paragraph(f"• {factor}", body_style))
+            story.append(Paragraph(f"- {xml_escape(str(factor))}", body_style))
             story.append(Spacer(1, 3))
         story.append(Spacer(1, 14))
 
@@ -121,7 +126,7 @@ def _fallback_pdf_generation(context: Dict[str, Any], pdf_path: str) -> None:
         if not recs:
             story.append(Paragraph("No specific recommendations.", body_style))
         for rec in recs:
-            story.append(Paragraph(f"✓ {rec}", body_style))
+            story.append(Paragraph(f"[OK] {xml_escape(str(rec))}", body_style))
             story.append(Spacer(1, 3))
         story.append(Spacer(1, 20))
 
@@ -317,7 +322,10 @@ def generate_report(apk_id: str) -> ReportResponse:
     data["generated_date"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # Render HTML template using Jinja2
-    env = Environment(loader=FileSystemLoader(TEMPLATES_DIR))
+    env = Environment(
+        loader=FileSystemLoader(TEMPLATES_DIR),
+        autoescape=select_autoescape(["html", "xml"]),
+    )
     
     # Check if template exists, if not we will just skip HTML/PDF temporarily 
     # (The frontend UI can handle it or we assume template is there)

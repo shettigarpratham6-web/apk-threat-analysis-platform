@@ -1,8 +1,14 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const API_KEY = import.meta.env.VITE_API_KEY || "";
 
-/**
- * Generic helper for processing fetch response JSON and throwing clean errors.
- */
+function getHeaders(customHeaders = {}) {
+  const headers = { ...customHeaders };
+  if (API_KEY) {
+    headers["X-API-Key"] = API_KEY;
+  }
+  return headers;
+}
+
 async function handleResponse(response) {
   if (!response.ok) {
     let errorDetail = `HTTP ${response.status} ${response.statusText}`;
@@ -19,79 +25,63 @@ async function handleResponse(response) {
   return await response.json();
 }
 
-/**
- * Health check endpoint.
- */
 export async function checkSystemHealth() {
   const response = await fetch(`${API_BASE_URL}/health`);
   return handleResponse(response);
 }
 
-/**
- * Upload APK without running full static analysis immediately (for dynamic run).
- */
 export async function uploadApk(file) {
   const formData = new FormData();
   formData.append("file", file);
 
   const response = await fetch(`${API_BASE_URL}/api/static-analysis/upload`, {
     method: "POST",
+    headers: getHeaders(),
     body: formData,
   });
   return handleResponse(response);
 }
 
-/**
- * Stage 1: Upload APK and execute static analysis pipeline.
- */
 export async function uploadAndAnalyzeStatic(file) {
   const formData = new FormData();
   formData.append("file", file);
 
   const response = await fetch(`${API_BASE_URL}/api/static-analysis/analyze`, {
     method: "POST",
+    headers: getHeaders(),
     body: formData,
   });
   return handleResponse(response);
 }
 
-/**
- * Stage 2: Launch Sandbox Emulator.
- */
 export async function startSandbox() {
   const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/sandbox/start`, {
     method: "POST",
+    headers: getHeaders(),
   });
   return handleResponse(response);
 }
 
-/**
- * Stop Sandbox Emulator.
- */
 export async function stopSandbox() {
   const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/sandbox/stop`, {
     method: "POST",
+    headers: getHeaders(),
   });
   return handleResponse(response);
 }
 
-/**
- * Stage 3: Install & Run APK in Sandbox.
- */
 export async function runApk(apkId) {
   const formData = new FormData();
   formData.append("apk_id", apkId);
 
   const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/run`, {
     method: "POST",
+    headers: getHeaders(),
     body: formData,
   });
   return handleResponse(response);
 }
 
-/**
- * Stage 4: Monitor Dynamic Behavior (mitmproxy + Frida).
- */
 export async function monitorBehavior(apkId, packageName, duration = 15) {
   const formData = new FormData();
   formData.append("apk_id", apkId);
@@ -102,131 +92,100 @@ export async function monitorBehavior(apkId, packageName, duration = 15) {
 
   const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/monitor`, {
     method: "POST",
+    headers: getHeaders(),
     body: formData,
   });
   return handleResponse(response);
 }
 
-/**
- * Stage 5: C2 Detection.
- */
 export async function detectC2(apkId) {
   const formData = new FormData();
   formData.append("apk_id", apkId);
 
   const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/c2-detect`, {
     method: "POST",
+    headers: getHeaders(),
     body: formData,
   });
   return handleResponse(response);
 }
 
-/**
- * Stage 6: Suspicious Servers Reputation Lookup.
- */
 export async function checkServers(apkId) {
   const formData = new FormData();
   formData.append("apk_id", apkId);
 
   const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/check-servers`, {
     method: "POST",
+    headers: getHeaders(),
     body: formData,
   });
   return handleResponse(response);
 }
 
-/**
- * Stage 7: Correlation & Unified Risk Score.
- */
 export async function correlate(apkId) {
   const formData = new FormData();
   formData.append("apk_id", apkId);
 
   const response = await fetch(`${API_BASE_URL}/api/correlation/analyze`, {
     method: "POST",
+    headers: getHeaders(),
     body: formData,
   });
   return handleResponse(response);
 }
 
-/**
- * Stage 10: Generate Forensic Report (PDF & HTML & JSON).
- */
 export async function generateReport(apkId) {
   const response = await fetch(`${API_BASE_URL}/api/report/generate/${apkId}`, {
     method: "POST",
+    headers: getHeaders(),
   });
   return handleResponse(response);
 }
 
-/**
- * Returns direct URL for HTML report view.
- */
 export function getReportViewUrl(apkId) {
   return `${API_BASE_URL}/api/report/view/${apkId}`;
 }
 
-/**
- * Returns direct URL for PDF report download.
- */
 export function getReportDownloadUrl(apkId) {
   return `${API_BASE_URL}/api/report/download/${apkId}?format=pdf`;
 }
 
-/**
- * Returns direct URL for JSON report download.
- */
 export function getReportJsonDownloadUrl(apkId) {
   return `${API_BASE_URL}/api/report/download/${apkId}?format=json`;
 }
 
-/**
- * Returns direct URL for IOC JSON download.
- */
 export function getReportIocJsonUrl(apkId) {
   return `${API_BASE_URL}/api/report/download/${apkId}?format=ioc`;
 }
 
-/**
- * Returns direct URL for IOC CSV download.
- */
 export function getReportIocCsvUrl(apkId) {
   return `${API_BASE_URL}/api/report/download/${apkId}?format=csv`;
 }
 
-/**
- * Returns direct URL to fetch live screen frame from the emulator.
- */
 export function getDeviceScreenUrl() {
   return `${API_BASE_URL}/api/dynamic-analysis/screen/current?_t=${Date.now()}`;
 }
 
-/**
- * Fetches real-time status and active app of the virtual phone.
- */
 export async function getDeviceInfo() {
-  const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/screen/info`);
+  const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/screen/info`, {
+    headers: getHeaders(),
+  });
   return handleResponse(response);
 }
 
-/**
- * Sends a tap, key, or text interaction to the virtual phone.
- */
 export async function sendDeviceTouch(payload) {
   const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/screen/touch`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(payload),
   });
   return handleResponse(response);
 }
 
-/**
- * Wakes and unlocks the virtual phone.
- */
 export async function wakeDevice() {
   const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/sandbox/wake`, {
     method: "POST",
+    headers: getHeaders(),
   });
   return handleResponse(response);
 }

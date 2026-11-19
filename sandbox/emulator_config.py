@@ -40,3 +40,7 @@ SNAPSHOT_NAME = os.getenv("SNAPSHOT_NAME", "clean_state")
 
 # Timeout in seconds to wait for emulator boot
 BOOT_TIMEOUT = int(os.getenv("BOOT_TIMEOUT", "120"))
+
+# mitmproxy interception host and port
+MITMPROXY_HOST = os.getenv("MITMPROXY_HOST", "127.0.0.1")
+MITMPROXY_PORT = int(os.getenv("MITMPROXY_PORT", "8080"))

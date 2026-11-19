@@ -13,6 +13,8 @@ from sandbox.emulator_config import (
     AVD_NAME,
     BOOT_TIMEOUT,
     HEADLESS_MODE,
+    MITMPROXY_HOST,
+    MITMPROXY_PORT,
     SNAPSHOT_NAME,
 )
 
@@ -95,7 +97,14 @@ class SandboxManager:
         # Clean stale lock files before launching
         self._cleanup_stale_avd_locks()
 
-        cmd = [self.emulator_path, "-avd", self.avd_name, "-no-snapshot-save"]
+        cmd = [
+            self.emulator_path,
+            "-avd",
+            self.avd_name,
+            "-no-snapshot-save",
+            "-http-proxy",
+            f"http://{MITMPROXY_HOST}:{MITMPROXY_PORT}",
+        ]
         if self.headless:
             cmd.append("-no-window")
 

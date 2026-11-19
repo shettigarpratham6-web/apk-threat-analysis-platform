@@ -4,10 +4,11 @@ import logging
 import os
 from typing import Optional
 
-from fastapi import APIRouter, Form, HTTPException, status, Query
+from fastapi import APIRouter, Form, HTTPException, Query, status
 from fastapi.responses import FileResponse, HTMLResponse
 
 from backend.app.reporting.report_generator import generate_report
+from backend.app.security import validate_apk_id
 
 router = APIRouter()
 logger = logging.getLogger("reporting_routes")
@@ -21,15 +22,14 @@ async def generate_forensic_report(
     apk_id: Optional[str] = None,
     apk_id_form: Optional[str] = Form(None, alias="apk_id"),
 ):
-    """
-    Generates PDF, HTML, and JSON forensic report artifacts for the given apk_id.
-    """
     target_apk_id = apk_id or apk_id_form
     if not target_apk_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Field 'apk_id' is required.",
         )
+
+    target_apk_id = validate_apk_id(target_apk_id)
 
     try:
         urls = generate_report(target_apk_id)
@@ -40,16 +40,15 @@ async def generate_forensic_report(
         logger.error(f"Error generating forensic report for apk_id '{target_apk_id}': {err}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An error occurred while generating forensic report: {str(err)}",
+            detail="An error occurred while generating forensic report.",
         )
 
 
 @router.get("/download/{apk_id}")
 @router.get("/{apk_id}/download")
 async def download_report(apk_id: str, format: str = Query("pdf")):
-    """
-    Downloads the compiled PDF or JSON forensic report file.
-    """
+    apk_id = validate_apk_id(apk_id)
+
     if format == "json":
         file_path = os.path.join(RESULTS_DIR, f"{apk_id}_report.json")
         media_type = "application/json"
@@ -68,13 +67,13 @@ async def download_report(apk_id: str, format: str = Query("pdf")):
         filename = f"{apk_id}_report.pdf"
 
     if not os.path.exists(file_path):
-        # Try generating report if not present
         try:
             generate_report(apk_id)
         except Exception as exc:
+            logger.error(f"Report generation failed for download {apk_id}: {exc}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Report file not found and generation failed: {str(exc)}",
+                detail="Report file not found and generation failed.",
             )
 
     if not os.path.exists(file_path):
@@ -90,22 +89,33 @@ async def download_report(apk_id: str, format: str = Query("pdf")):
 @router.get("/view/{apk_id}")
 @router.get("/{apk_id}/view")
 async def view_html_report(apk_id: str):
-    """
-    Renders raw HTML forensic report directly in the browser.
-    """
+    apk_id = validate_apk_id(apk_id)
+
     html_path = os.path.join(RESULTS_DIR, f"{apk_id}_report.html")
     if not os.path.exists(html_path):
         try:
             generate_report(apk_id)
         except Exception as exc:
+            logger.error(f"HTML report generation failed for view {apk_id}: {exc}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"HTML report not found and generation failed: {str(exc)}",
+                detail="HTML report not found and generation failed.",
             )
 
     try:
         with open(html_path, "r", encoding="utf-8") as hf:
             html_content = hf.read()
-        return HTMLResponse(content=html_content, status_code=200)
+        return HTMLResponse(
+            content=html_content,
+            status_code=200,
+            headers={
+                "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        logger.error(f"Error reading report HTML for {apk_id}: {exc}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error while viewing report.",
+        )
