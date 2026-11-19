@@ -1,12 +1,7 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-const API_KEY = import.meta.env.VITE_API_KEY || "";
 
 function getHeaders(customHeaders = {}) {
-  const headers = { ...customHeaders };
-  if (API_KEY) {
-    headers["X-API-Key"] = API_KEY;
-  }
-  return headers;
+  return { ...customHeaders };
 }
 
 async function handleResponse(response) {
