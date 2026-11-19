@@ -26,8 +26,6 @@ reports/
 logs/
 tools/frida-server
 tools/*.xz
-tools/apktool.jar
-tools/jadx/
 
 
 

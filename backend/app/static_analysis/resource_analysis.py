@@ -2,6 +2,7 @@
 import os
 import re
 from typing import Dict, Any, List
+from loguru import logger
 
 # Secret Regex Patterns
 SECRET_PATTERNS = {

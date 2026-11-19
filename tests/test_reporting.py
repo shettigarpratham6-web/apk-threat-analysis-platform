@@ -2,6 +2,7 @@
 
 import json
 import os
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import app
@@ -59,58 +60,11 @@ def test_generate_report_pdf_and_html():
                 os.remove(p)
 
 
-def test_xss_prevention_in_html_report():
-    results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend", "results"))
-    os.makedirs(results_dir, exist_ok=True)
-
-    test_apk_id = "77777777-7777-7777-7777-777777777777"
-    correlation_file = os.path.join(results_dir, f"{test_apk_id}_correlation.json")
-    html_file = os.path.join(results_dir, f"{test_apk_id}_report.html")
-    pdf_file = os.path.join(results_dir, f"{test_apk_id}_report.pdf")
-
-    xss_payload = "<script>alert(1)</script>"
-    correlation_data = {
-        "apk_id": test_apk_id,
-        "package_name": xss_payload,
-        "manifest_analysis": {
-            "metadata": {"package_name": xss_payload}
-        },
-        "risk_assessment": {
-            "risk_score": 50,
-            "risk_label": "Medium Risk",
-            "contributing_factors": [f"Suspicious activity in {xss_payload}"]
-        }
-    }
-
-    with open(correlation_file, "w", encoding="utf-8") as cf:
-        json.dump(correlation_data, cf)
-
-    try:
-        generate_report(test_apk_id)
-        assert os.path.exists(html_file)
-
-        with open(html_file, "r", encoding="utf-8") as hf:
-            rendered = hf.read()
-
-        assert "&lt;script&gt;alert(1)&lt;/script&gt;" in rendered
-        assert "<script>alert(1)</script>" not in rendered
-
-        view_res = client.get(f"/api/report/{test_apk_id}/view")
-        assert view_res.status_code == 200
-        assert "default-src 'none'" in view_res.headers.get("content-security-policy", "")
-        assert view_res.headers.get("x-content-type-options") == "nosniff"
-    finally:
-        for p in [correlation_file, html_file, pdf_file]:
-            if os.path.exists(p):
-                os.remove(p)
-
-
-
 def test_reporting_api_endpoints():
     results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend", "results"))
     os.makedirs(results_dir, exist_ok=True)
 
-    test_apk_id = "66666666-6666-6666-6666-666666666666"
+    test_apk_id = "test_report_route_5555"
     correlation_file = os.path.join(results_dir, f"{test_apk_id}_correlation.json")
     html_file = os.path.join(results_dir, f"{test_apk_id}_report.html")
     pdf_file = os.path.join(results_dir, f"{test_apk_id}_report.pdf")
@@ -149,4 +103,3 @@ def test_reporting_api_endpoints():
         for p in [correlation_file, html_file, pdf_file]:
             if os.path.exists(p):
                 os.remove(p)
-

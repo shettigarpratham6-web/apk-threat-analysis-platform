@@ -7,7 +7,7 @@ import shutil
 import uuid
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
 
-from backend.app.static_analysis.apk_extractor import extract_apk_securely, hash_file, save_upload
+from backend.app.static_analysis.apk_extractor import extract_apk_securely, hash_file
 from backend.app.static_analysis.manifest_check import analyze_manifest
 from backend.app.static_analysis.code_analysis import analyze_code
 from backend.app.static_analysis.resource_analysis import analyze_resources
@@ -16,18 +16,7 @@ from backend.app.static_analysis.signature_check import run_yara_scan
 from backend.app.static_analysis.cert_scanner import scan_certificates
 from loguru import logger
 from backend.app.static_analysis.aggregator import calculate_risk, generate_iocs
-from backend.app.static_analysis.ml_classifier import get_static_malware_classifier
-
-_MISSING = object()
-
-
-def safe_run(func, *args, default=_MISSING):
-    try:
-        return func(*args)
-    except Exception as e:
-        scanner_name = getattr(func, "__name__", str(func))
-        logger.error(f"Scanner {scanner_name} failed: {e}")
-        return {"error": str(e)} if default is _MISSING else default
+from backend.core.static_analysis.ml_classifier import get_static_malware_classifier
 
 # Try to import Androguard for manifest parsing
 try:
@@ -44,6 +33,10 @@ RESULTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."
 
 @router.post("/upload")
 async def upload_and_analyze_apk(file: UploadFile = File(...)):
+    """
+    Accepts an uploaded APK file, validates, hashes, securely extracts it,
+    and returns metadata + extraction tree.
+    """
     if not file.filename or not file.filename.lower().endswith(".apk"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -53,108 +46,144 @@ async def upload_and_analyze_apk(file: UploadFile = File(...)):
     apk_id = str(uuid.uuid4())
     upload_dir = os.path.join(UPLOADS_DIR, apk_id)
     os.makedirs(upload_dir, exist_ok=True)
-    file_path = os.path.join(upload_dir, "original.apk")
-
+    
+    file_path = os.path.join(UPLOADS_DIR, f"{apk_id}.apk")
+    
     try:
-        file_size = await save_upload(file, file_path)
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        file_size = os.path.getsize(file_path)
         hashes = hash_file(file_path)
+        
         extract_dir = os.path.join(upload_dir, "extracted")
         extraction_result = extract_apk_securely(file_path, extract_dir)
+        
         return {
             "apk_id": apk_id,
             "metadata": {
                 "sha256": hashes["sha256"],
                 "md5": hashes["md5"],
                 "size": file_size,
-                "filename": file.filename,
+                "filename": file.filename
             },
-            "extraction": extraction_result,
+            "extraction": extraction_result
         }
-    except HTTPException:
-        raise
-    except ValueError as err:
-        raise HTTPException(status_code=400, detail=str(err))
-    except Exception:
-        logger.exception("Upload processing failed")
-        raise HTTPException(status_code=500, detail="Internal server error during upload.")
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=str(err))
 
 
 @router.post("/analyze")
 async def analyze_apk_pipeline(file: UploadFile = File(...)):
+    """
+    Unified Static Analysis Endpoint.
+    Executes the complete static analysis pipeline (Phases 1-9).
+    """
     if not file.filename or not file.filename.lower().endswith(".apk"):
         raise HTTPException(status_code=400, detail="Invalid file format. Please upload a valid .apk file.")
-
+        
+    if file.content_type not in ["application/vnd.android.package-archive", "application/octet-stream", "application/zip", "application/x-zip-compressed"]:
+        # Basic MIME validation
+        pass
+        
     apk_id = str(uuid.uuid4())
     upload_dir = os.path.join(UPLOADS_DIR, apk_id)
     os.makedirs(upload_dir, exist_ok=True)
     os.makedirs(RESULTS_DIR, exist_ok=True)
-
-    file_path = os.path.join(upload_dir, "original.apk")
+    
+    file_path = os.path.join(UPLOADS_DIR, f"{apk_id}.apk")
     extract_dir = os.path.join(upload_dir, "extracted")
-
+    
     try:
-        file_size = await save_upload(file, file_path)
+        # 1. Validation & Save
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        file_size = os.path.getsize(file_path)
+        if file_size > 200 * 1024 * 1024:
+            os.remove(file_path)
+            raise HTTPException(status_code=413, detail="File exceeds the 200MB limit.")
         hashes = hash_file(file_path)
         metadata = {
             "filename": file.filename,
             "size": file_size,
             "sha256": hashes["sha256"],
-            "md5": hashes["md5"],
+            "md5": hashes["md5"]
         }
+        
+        # 2. Extract APK
         extraction_data = extract_apk_securely(file_path, extract_dir)
         extraction_tree = extraction_data.get("tree", []) if isinstance(extraction_data, dict) else []
-
+        
         try:
             apk_obj = APK(file_path) if APK else None
         except Exception as e:
             logger.warning(f"Failed to load APK with Androguard: {e}")
             apk_obj = None
+        
+        # robust wrapper
+        def safe_run(func, *args, default_ret={}):
+            try:
+                return func(*args)
+            except Exception as e:
+                logger.error(f"Scanner {func.__name__} failed: {e}")
+                return {"error": str(e), **default_ret}
 
+        # Concurrently execute independent static analysis phases (Phases 3-8) via ThreadPoolExecutor
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             fut_manifest = executor.submit(safe_run, analyze_manifest, apk_obj)
-            fut_cert = executor.submit(safe_run, scan_certificates, file_path, default=[])
+            fut_cert = executor.submit(safe_run, scan_certificates, file_path, default_ret=[])
             fut_code = executor.submit(safe_run, analyze_code, file_path)
             fut_res = executor.submit(safe_run, analyze_resources, extract_dir)
             fut_native = executor.submit(safe_run, analyze_native_libs, extract_dir)
-            fut_yara = executor.submit(safe_run, run_yara_scan, extract_dir, default=[])
+            fut_yara = executor.submit(safe_run, run_yara_scan, extract_dir, default_ret=[])
 
             manifest_results = fut_manifest.result()
             cert_results = fut_cert.result()
+            if isinstance(cert_results, dict) and "error" in cert_results:
+                cert_results = []
             code_results = fut_code.result()
             resource_results = fut_res.result()
             native_results = fut_native.result()
             yara_results = fut_yara.result()
-
+            if isinstance(yara_results, dict) and "error" in yara_results:
+                yara_results = []
+            
+        # 9. Static Feature Vector Extraction & Random Forest ML Classification
         ml_clf = get_static_malware_classifier()
         feature_vector = ml_clf.extract_feature_vector_from_static_analysis(
             manifest_results=manifest_results,
             code_results=code_results,
-            native_results=native_results,
+            native_results=native_results
         )
         ml_results = safe_run(
             ml_clf.predict,
             feature_vector,
-            default={"prediction": "unknown", "malware_probability": 0.0, "benign_probability": 0.0},
+            default_ret={"prediction": "unknown", "malware_probability": 0.0, "benign_probability": 0.0}
         )
 
+        # 10. Risk Correlation Engine
         risk_results = calculate_risk(
-            manifest_results,
-            code_results,
-            resource_results,
-            native_results,
+            manifest_results, 
+            code_results, 
+            resource_results, 
+            native_results, 
             yara_results,
             cert_results,
-            ml_results,
+            ml_results
         )
-
+        
+        # 11. IOC Generator
         ioc_results = generate_iocs(metadata, code_results, resource_results, cert_results)
-
+        
+        # Save independent JSONs
         with open(os.path.join(RESULTS_DIR, f"{apk_id}_ioc.json"), "w") as f:
             json.dump(ioc_results, f, indent=4)
-
+            
+        # Save IOC CSV
         from backend.app.static_analysis.aggregator import generate_ioc_csv
         generate_ioc_csv(ioc_results, os.path.join(RESULTS_DIR, f"{apk_id}_ioc.csv"))
-
+            
         final_results = {
             "apk_id": apk_id,
             "metadata": metadata,
@@ -162,33 +191,34 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
             "manifest_analysis": manifest_results,
             "certificate_analysis": cert_results,
             "code_analysis": code_results,
-            "codebert_similarity": code_results.get("codebert_similarity", {}) if isinstance(code_results, dict) else {},
+            "codebert_similarity": code_results.get("codebert_similarity", {}),
             "resource_analysis": resource_results,
             "native_library_analysis": native_results,
             "yara_matches": yara_results,
             "ml_classification": ml_results,
             "static_feature_vector": feature_vector,
             "risk_analysis": risk_results,
-            "iocs": ioc_results,
+            "iocs": ioc_results
         }
-
+        
         with open(os.path.join(RESULTS_DIR, f"{apk_id}_report.json"), "w") as f:
             json.dump(final_results, f, indent=4)
         with open(os.path.join(RESULTS_DIR, f"{apk_id}_static.json"), "w") as f:
             json.dump(final_results, f, indent=4)
-
+            
         return final_results
-
+        
     except HTTPException:
         raise
-    except ValueError as err:
-        raise HTTPException(status_code=400, detail=str(err))
     except Exception as err:
-        logger.exception(f"Unexpected error in pipeline: {err}")
-        raise HTTPException(status_code=500, detail="Internal server error during static analysis.")
+        logger.error(f"Unexpected error in pipeline: {err}")
+        raise HTTPException(status_code=500, detail=f"Pipeline crashed: {str(err)}")
     finally:
+        # Cleanup temporary extracted files to prevent disk exhaustion
         if os.path.exists(extract_dir):
             shutil.rmtree(extract_dir, ignore_errors=True)
+        if os.path.exists(upload_dir) and not os.listdir(upload_dir):
+            shutil.rmtree(upload_dir, ignore_errors=True)
 
 
 @router.post("/codebert-similarity")

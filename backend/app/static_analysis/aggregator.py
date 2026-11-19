@@ -27,12 +27,12 @@ def calculate_risk(manifest: Dict, code: Dict, resources: Dict, natives: Dict, y
                 score += 10
                 factors.append(f"High risk permission: {perm['name']}")
                 
-    if manifest.get("security_flags", {}).get("debuggable"):
+    if manifest.get("security_flags", {}).get("debuggable") == True:
         score += 10
         factors.append("App is debuggable (android:debuggable=true)")
         recommendations.add("Set android:debuggable to false for release.")
         
-    if manifest.get("security_flags", {}).get("allowBackup"):
+    if manifest.get("security_flags", {}).get("allowBackup") == True:
         score += 5
         factors.append("App allows backup (android:allowBackup=true)")
         
@@ -68,16 +68,15 @@ def calculate_risk(manifest: Dict, code: Dict, resources: Dict, natives: Dict, y
         
     # 5. YARA Matches
     for match in yara:
-        rule_name = match.get("rule_name") or match.get("rule", "UnknownRule")
         if match.get("severity") == "Critical":
             score += 25
-            factors.append(f"Critical YARA signature match: {rule_name}")
+            factors.append(f"Critical YARA signature match: {match['rule_name']}")
         elif match.get("severity") == "High":
             score += 15
-            factors.append(f"High YARA signature match: {rule_name}")
+            factors.append(f"High YARA signature match: {match['rule_name']}")
         else:
             score += 5
-            factors.append(f"YARA signature match: {rule_name}")
+            factors.append(f"YARA signature match: {match['rule_name']}")
             
     # 6. Misconfigurations
     if manifest.get("misconfigurations"):

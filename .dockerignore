@@ -1,7 +1,0 @@
-.git
-node_modules
-**/__pycache__
-backend/uploads
-backend/results
-frontend/dist
-.env

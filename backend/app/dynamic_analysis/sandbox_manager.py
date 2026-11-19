@@ -13,8 +13,6 @@ from sandbox.emulator_config import (
     AVD_NAME,
     BOOT_TIMEOUT,
     HEADLESS_MODE,
-    MITMPROXY_HOST,
-    MITMPROXY_PORT,
     SNAPSHOT_NAME,
 )
 
@@ -97,14 +95,7 @@ class SandboxManager:
         # Clean stale lock files before launching
         self._cleanup_stale_avd_locks()
 
-        cmd = [
-            self.emulator_path,
-            "-avd",
-            self.avd_name,
-            "-no-snapshot-save",
-            "-http-proxy",
-            f"http://{MITMPROXY_HOST}:{MITMPROXY_PORT}",
-        ]
+        cmd = [self.emulator_path, "-avd", self.avd_name, "-no-snapshot-save"]
         if self.headless:
             cmd.append("-no-window")
 
@@ -438,6 +429,7 @@ class SandboxManager:
         print(f"[BEHAVIOR LOG] App running live. Observing for {duration} seconds...")
 
         # Run light UI exploration early in the observation window
+        half_duration = max(2, duration // 2)
         time.sleep(2)
         self.run_ui_exploration(package_name, event_count=25)
         remaining = max(1, duration - 4)

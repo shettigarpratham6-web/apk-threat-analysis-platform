@@ -2,6 +2,7 @@
 
 import json
 import os
+import pytest
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
@@ -120,7 +121,7 @@ def test_monitor_endpoint_mocked():
         response = client.post(
             "/api/dynamic-analysis/monitor",
             data={
-                "apk_id": "11111111-1111-1111-1111-111111111111",
+                "apk_id": "test_uuid_12345",
                 "package_name": "com.example.threattest",
                 "duration": 1
             }
@@ -128,7 +129,7 @@ def test_monitor_endpoint_mocked():
 
         assert response.status_code == 200
         data = response.json()
-        assert data["apk_id"] == "11111111-1111-1111-1111-111111111111"
+        assert data["apk_id"] == "test_uuid_12345"
         assert data["package_name"] == "com.example.threattest"
 
         dynamic = data["dynamic_analysis"]
@@ -136,9 +137,9 @@ def test_monitor_endpoint_mocked():
         assert len(dynamic["file_activity"]) == 1
         assert len(dynamic["api_calls"]) == 1
 
-        # Verify result JSON file persistence
+        # Verify result JSON file persistence in backend/results/test_uuid_12345_dynamic.json
         results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend", "results"))
-        persisted_file = os.path.join(results_dir, "11111111-1111-1111-1111-111111111111_dynamic.json")
+        persisted_file = os.path.join(results_dir, "test_uuid_12345_dynamic.json")
         assert os.path.exists(persisted_file), f"Result JSON file {persisted_file} must exist!"
 
 
@@ -196,7 +197,7 @@ def test_c2_detect_endpoint(tmp_path):
     results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend", "results"))
     os.makedirs(results_dir, exist_ok=True)
 
-    test_apk_id = "22222222-2222-2222-2222-222222222222"
+    test_apk_id = "test_c2_eval_9999"
     dynamic_path = os.path.join(results_dir, f"{test_apk_id}_dynamic.json")
     static_path = os.path.join(results_dir, f"{test_apk_id}_static.json")
 
@@ -277,7 +278,7 @@ def test_check_servers_endpoint():
     results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend", "results"))
     os.makedirs(results_dir, exist_ok=True)
 
-    test_apk_id = "33333333-3333-3333-3333-333333333333"
+    test_apk_id = "test_servers_eval_8888"
     c2_path = os.path.join(results_dir, f"{test_apk_id}_c2.json")
     servers_path = os.path.join(results_dir, f"{test_apk_id}_servers.json")
 

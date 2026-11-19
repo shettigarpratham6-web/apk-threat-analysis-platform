@@ -1,7 +1,8 @@
 """Phase 7: Native Library Analysis Engine"""
 import os
 import hashlib
-from typing import Dict, Any
+from typing import Dict, Any, List
+from loguru import logger
 
 def analyze_native_libs(extracted_dir: str) -> Dict[str, Any]:
     """Scans the lib/ directory for native architectures and suspicious libraries."""
