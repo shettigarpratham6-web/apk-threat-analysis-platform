@@ -24,16 +24,21 @@ class FridaMonitor:
         self.session: Optional[Any] = None
         self.script: Optional[Any] = None
         self.events: List[Dict[str, Any]] = []
+        self._server_ready: bool = False
 
     def ensure_server_running(self) -> bool:
         """Verifies if frida-server is running on the Android emulator; deploys/launches it if needed."""
         if frida is None:
             return False
 
+        if self._server_ready:
+            return True
+
         try:
             device = frida.get_usb_device(timeout=2)
             if len(device.enumerate_processes()) > 0:
                 logger.info("Frida server is already active and responsive on device.")
+                self._server_ready = True
                 return True
         except Exception:
             pass

@@ -7,14 +7,15 @@ try:
 except ImportError:
     APK = None
 
-def scan_certificates(apk_path: str) -> List[Dict[str, Any]]:
+def scan_certificates(apk_path: str, apk_obj: Any = None) -> List[Dict[str, Any]]:
     findings = []
     
-    if not APK:
+    if not APK and apk_obj is None:
         return [{"error": "Androguard not installed."}]
         
     try:
-        apk_obj = APK(apk_path)
+        if apk_obj is None:
+            apk_obj = APK(apk_path)
         certs = apk_obj.get_certificates()
         
         for cert in certs:

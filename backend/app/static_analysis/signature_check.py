@@ -13,8 +13,22 @@ except ImportError:
 from typing import Dict, Any, List
 from loguru import logger
 
+# Module-level caches for YARA rules to avoid compiling/parsing on every scan
+_COMPILED_YARA_RULES = None
+_YARA_COMPILED_CHECKED = False
+_CACHED_PLYARA_RULES = None
+
+_SKIP_YARA_EXTENSIONS = {
+    ".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico",
+    ".ttf", ".otf", ".woff", ".woff2", ".mp3", ".ogg", ".wav"
+}
+
 def _parse_plyara_rules():
     """Parses YARA rules using pure-Python plyara as a reliable fallback when native yara is unavailable."""
+    global _CACHED_PLYARA_RULES
+    if _CACHED_PLYARA_RULES is not None:
+        return _CACHED_PLYARA_RULES
+
     if plyara is None:
         return []
     rules_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "yara_rules"))
@@ -36,7 +50,8 @@ def _parse_plyara_rules():
         
     try:
         parser = plyara.Plyara()
-        return parser.parse_string("\n".join(rule_texts))
+        _CACHED_PLYARA_RULES = parser.parse_string("\n".join(rule_texts))
+        return _CACHED_PLYARA_RULES
     except Exception as e:
         logger.warning(f"Plyara fallback failed to parse rules: {e}")
         return []
@@ -84,9 +99,15 @@ def _evaluate_plyara_rule(rule: Dict[str, Any], content_bytes: bytes) -> bool:
         return len(matched_names) > 0
 
 def get_compiled_rules():
-    """Compiles all YARA rules from the yara_rules directory."""
+    """Compiles all YARA rules from the yara_rules directory with caching."""
+    global _COMPILED_YARA_RULES, _YARA_COMPILED_CHECKED
+    if _YARA_COMPILED_CHECKED:
+        return _COMPILED_YARA_RULES
+
     if yara is None:
         logger.info("yara-python is not installed; pure-Python plyara fallback scanner will be used.")
+        _YARA_COMPILED_CHECKED = True
+        _COMPILED_YARA_RULES = None
         return None
         
     rules_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "yara_rules"))
@@ -98,13 +119,18 @@ def get_compiled_rules():
                 filepaths[file] = os.path.join(rules_dir, file)
                 
     if not filepaths:
+        _YARA_COMPILED_CHECKED = True
+        _COMPILED_YARA_RULES = None
         return None
         
     try:
-        return yara.compile(filepaths=filepaths)
+        _COMPILED_YARA_RULES = yara.compile(filepaths=filepaths)
     except Exception as e:
         logger.error(f"Failed to compile some YARA rules: {e}")
-        return None
+        _COMPILED_YARA_RULES = None
+
+    _YARA_COMPILED_CHECKED = True
+    return _COMPILED_YARA_RULES
 
 def run_yara_scan(extracted_dir: str) -> List[Dict[str, Any]]:
     """Runs compiled YARA rules against the extracted APK directory with plyara fallback support."""
@@ -114,6 +140,9 @@ def run_yara_scan(extracted_dir: str) -> List[Dict[str, Any]]:
     if rules:
         for root, _, files in os.walk(extracted_dir):
             for file in files:
+                ext = os.path.splitext(file)[1].lower()
+                if ext in _SKIP_YARA_EXTENSIONS:
+                    continue
                 filepath = os.path.join(root, file)
                 rel_path = os.path.relpath(filepath, extracted_dir)
                 try:
@@ -138,6 +167,9 @@ def run_yara_scan(extracted_dir: str) -> List[Dict[str, Any]]:
 
     for root, _, files in os.walk(extracted_dir):
         for file in files:
+            ext = os.path.splitext(file)[1].lower()
+            if ext in _SKIP_YARA_EXTENSIONS:
+                continue
             filepath = os.path.join(root, file)
             rel_path = os.path.relpath(filepath, extracted_dir)
             try:

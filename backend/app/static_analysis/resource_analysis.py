@@ -15,13 +15,28 @@ SECRET_PATTERNS = {
     "Generic Secret": r'(?i)(?:password|secret|token|api_key|apikey)["\s:=]+([^\s"<>]+)'
 }
 
+# Pre-compiled regex patterns for fast secret scanning
+_COMPILED_SECRET_PATTERNS = {
+    k: re.compile(v) for k, v in SECRET_PATTERNS.items()
+}
+
+# Binary asset extensions that do not contain textual secrets
+_SKIP_EXTENSIONS = {
+    ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".ico",
+    ".ttf", ".otf", ".woff", ".woff2", ".mp3", ".ogg", ".wav",
+    ".so", ".arsc", ".dex"
+}
+
 def scan_file_for_secrets(filepath: str) -> List[Dict[str, str]]:
     findings = []
     try:
+        # Avoid loading oversized binary resource blobs
+        if os.path.getsize(filepath) > 2 * 1024 * 1024:
+            return findings
         with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
-            for secret_type, pattern in SECRET_PATTERNS.items():
-                matches = re.findall(pattern, content)
+            for secret_type, pat in _COMPILED_SECRET_PATTERNS.items():
+                matches = pat.findall(content)
                 for match in set(matches):
                     # For generic secrets, we captured a group
                     val = match if isinstance(match, str) else str(match)
@@ -53,26 +68,28 @@ def analyze_resources(extracted_dir: str) -> Dict[str, Any]:
             for file in files:
                 filepath = os.path.join(root, file)
                 rel_path = os.path.relpath(filepath, extracted_dir)
+                ext = os.path.splitext(file)[1].lower()
                 
-                # Secret scanning (all files in assets/res)
+                # Secret scanning (all textual files in assets/res)
                 if target in ["assets", "res"]:
-                    file_secrets = scan_file_for_secrets(filepath)
-                    for s in file_secrets:
-                        results["secrets"].append({
-                            "file": rel_path,
-                            "type": s["type"],
-                            "value": s["value"]
-                        })
+                    if ext not in _SKIP_EXTENSIONS:
+                        file_secrets = scan_file_for_secrets(filepath)
+                        for s in file_secrets:
+                            results["secrets"].append({
+                                "file": rel_path,
+                                "type": s["type"],
+                                "value": s["value"]
+                            })
                 
                 # Config scanning
-                if target in ["assets", "res"] and file.endswith((".json", ".xml", ".yaml", ".properties", ".env")):
+                if target in ["assets", "res"] and ext in [".json", ".xml", ".yaml", ".properties", ".env"]:
                     results["configurations"].append({
                         "file": rel_path,
-                        "type": os.path.splitext(file)[1][1:].upper()
+                        "type": ext[1:].upper()
                     })
                 
                 # Certificate scanning in META-INF
-                if target == "META-INF" and file.endswith((".RSA", ".DSA", ".EC")):
+                if target == "META-INF" and ext in [".rsa", ".dsa", ".ec"]:
                     results["certificates"].append({
                         "file": rel_path,
                         "status": "Present (Parsing requires pyOpenSSL implementation)"

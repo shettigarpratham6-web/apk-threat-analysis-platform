@@ -40,9 +40,11 @@ async def start_sandbox():
     """
     Launches the Android emulator sandbox process and waits for ADB device readiness.
     """
+    start_time = time.perf_counter()
     try:
         await asyncio.to_thread(sandbox.start_emulator)
         await asyncio.to_thread(sandbox.wait_until_ready)
+        logger.info(f"[PERFORMANCE] dynamic_start_sandbox duration: {time.perf_counter() - start_time:.4f}s")
         return {
             "status": "ready",
             "avd_name": sandbox.avd_name,
@@ -123,8 +125,10 @@ async def run_apk_safely(
             detail="APK file not found. Provide a valid 'apk_id' of an uploaded file or attach a new '.apk' file.",
         )
 
+    start_time = time.perf_counter()
     try:
         result = await asyncio.to_thread(sandbox.run_full_dynamic_prep, file_path)
+        logger.info(f"[PERFORMANCE] dynamic_run_apk duration: {time.perf_counter() - start_time:.4f}s")
         return {
             "apk_id": resolved_apk_id,
             "package_name": result["package_name"],
@@ -187,6 +191,7 @@ async def monitor_apk_behavior(
             detail="Package name could not be resolved. Please specify 'package_name' or ensure APK exists in uploads.",
         )
 
+    start_time = time.perf_counter()
     try:
         behavior_results = await asyncio.to_thread(
             sandbox.monitor_behavior,
@@ -206,6 +211,7 @@ async def monitor_apk_behavior(
         with open(result_file_path, "w", encoding="utf-8") as rf:
             json.dump(response_payload, rf, indent=2)
 
+        logger.info(f"[PERFORMANCE] dynamic_monitor_behavior duration: {time.perf_counter() - start_time:.4f}s")
         return response_payload
     except Exception as err:
         logger.error(f"Error monitoring behavior for apk_id '{apk_id}': {err}")
@@ -259,6 +265,7 @@ async def detect_c2_endpoint(
         except Exception as exc:
             logger.warning(f"Could not parse static results file '{static_file}': {exc}")
 
+    start_time = time.perf_counter()
     try:
         c2_result = sandbox.run_c2_detection(dynamic_results, static_results)
 
@@ -274,6 +281,7 @@ async def detect_c2_endpoint(
         with open(c2_file_path, "w", encoding="utf-8") as cf:
             json.dump(payload, cf, indent=2)
 
+        logger.info(f"[PERFORMANCE] dynamic_c2_detect duration: {time.perf_counter() - start_time:.4f}s")
         return payload
     except Exception as err:
         logger.error(f"Error running C2 detection for apk_id '{apk_id}': {err}")
@@ -317,6 +325,7 @@ async def check_servers_endpoint(
     if not suspected_hosts and "c2_detection" in c2_results and isinstance(c2_results["c2_detection"], dict):
         suspected_hosts = c2_results["c2_detection"].get("suspected_c2_hosts", [])
 
+    start_time = time.perf_counter()
     try:
         from backend.app.dynamic_analysis.server_reputation import check_all
 
@@ -333,6 +342,7 @@ async def check_servers_endpoint(
         with open(servers_file_path, "w", encoding="utf-8") as sf:
             json.dump(payload, sf, indent=2)
 
+        logger.info(f"[PERFORMANCE] dynamic_check_servers duration: {time.perf_counter() - start_time:.4f}s")
         return payload
     except Exception as err:
         logger.error(f"Error checking server reputation for apk_id '{apk_id}': {err}")

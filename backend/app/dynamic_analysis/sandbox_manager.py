@@ -36,6 +36,7 @@ class SandboxManager:
         self._ready_cache_time: float = 0.0
         self._log_path = None
         self._log_fh = None
+        self._ca_cert_installed: bool = False
 
     def _adb_boot_completed(self) -> bool:
         """True when an emulator is attached and has finished booting."""
@@ -200,6 +201,9 @@ class SandboxManager:
         Installs the mitmproxy CA certificate into Android emulator system store (/system/etc/security/cacerts/)
         using a tmpfs overlay mount to ensure transparent HTTPS interception without modifying host images permanently.
         """
+        if self._ca_cert_installed:
+            return True
+
         cert_hash = "c8750f0d"
         cert_filename = f"{cert_hash}.0"
 
@@ -214,6 +218,7 @@ class SandboxManager:
             )
             if "exists" in check_res.stdout:
                 logger.info(f"System CA certificate {cert_filename} is already installed in emulator.")
+                self._ca_cert_installed = True
                 return True
         except Exception:
             pass
@@ -249,6 +254,7 @@ class SandboxManager:
             subprocess.run([self.adb_path, "shell", f"chown root:root {dest_android}"], capture_output=True, text=True, check=False)
             subprocess.run([self.adb_path, "shell", f"chcon u:object_r:system_file:s0 {dest_android}"], capture_output=True, text=True, check=False)
 
+            self._ca_cert_installed = True
             logger.info(f"Successfully installed CA certificate {cert_filename} in emulator.")
             print(f"[NETWORK LOG] Installed mitmproxy CA certificate {cert_filename} into emulator cacerts.")
             return True
@@ -268,7 +274,7 @@ class SandboxManager:
 
         try:
             proc = subprocess.run(
-                [self.adb_path, "logcat", "-d", "-v", "time"],
+                [self.adb_path, "logcat", "-d", "-v", "time", "-t", str(max_lines)],
                 capture_output=True,
                 text=True,
                 check=False,
@@ -359,6 +365,7 @@ class SandboxManager:
                 pass
             self._log_fh = None
 
+        self._ca_cert_installed = False
         logger.info("Emulator process stopped.")
         print("[SANDBOX LOG] Emulator process terminated cleanly.")
 
@@ -374,13 +381,17 @@ class SandboxManager:
         """
         logger.info(f"Initiating full dynamic sandbox prep for: {apk_path}")
         print(f"[SANDBOX LOG] Initiating full dynamic sandbox prep for '{apk_path}'...")
+        t0_prep_total = time.time()
 
         # 0. Ensure emulator is running and booted
+        t0_ready = time.time()
         if not self.is_emulator_ready():
             logger.info("Emulator is not running or not ready. Auto-launching sandbox emulator...")
             print("[SANDBOX LOG] Emulator device offline. Starting fake phone sandbox...")
             self.start_emulator()
             self.wait_until_ready(timeout=BOOT_TIMEOUT)
+        t_ready = time.time() - t0_ready
+        logger.info(f"[PERFORMANCE] Stage 'emulator_readiness': {t_ready:.3f}s")
 
         # 1. Resolve package name and clean previous instance
         from backend.app.dynamic_analysis.apk_runner import ApkRunner
@@ -395,18 +406,39 @@ class SandboxManager:
             logger.debug(f"Pre-install cleanup skipped: {exc}")
 
         # 2. Install APK and launch app with resilient fallback
+        t0_install = time.time()
         try:
             runner.install_apk(apk_path)
+            t_install = time.time() - t0_install
+            logger.info(f"[PERFORMANCE] Stage 'apk_installation': {t_install:.3f}s")
+
+            t0_launch = time.time()
             runner.launch_apk(package_name)
         except Exception as exc:
             logger.warning(f"Device-level APK installation skipped/fallback for '{package_name}': {exc}")
             print(f"[SANDBOX WARNING] Device installation fallback for '{package_name}': {exc}")
+            t0_launch = time.time()
 
-        # 3. Short settle delay to let app open completely on-screen
-        settle_seconds = 2
-        logger.info(f"Pausing {settle_seconds}s to let app interface initialize on-screen...")
-        print(f"[SANDBOX LOG] Pausing {settle_seconds}s to allow app UI initialization...")
-        time.sleep(settle_seconds)
+        # 3. Responsive settle check to ensure app has initialized on-screen
+        settle_start = time.time()
+        while time.time() - settle_start < 2.0:
+            try:
+                chk = subprocess.run(
+                    [self.adb_path, "shell", "pidof", package_name],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=1,
+                )
+                if chk.stdout.strip():
+                    break
+            except Exception:
+                pass
+            time.sleep(0.15)
+
+        t_launch = time.time() - t0_launch
+        logger.info(f"[PERFORMANCE] Stage 'apk_execution': {t_launch:.3f}s")
+        logger.info(f"[PERFORMANCE] Stage 'dynamic_prep_total': {time.time() - t0_prep_total:.3f}s")
 
         return {
             "package_name": package_name,
@@ -431,6 +463,7 @@ class SandboxManager:
         from backend.app.dynamic_analysis.network_monitor import NetworkMonitor
         from backend.app.dynamic_analysis.frida_monitor import FridaMonitor
 
+        t0_mon_total = time.time()
         logger.info(f"Starting behavior monitoring for package '{package_name}' (apk_id={apk_id}, duration={duration}s)...")
         print(f"[BEHAVIOR LOG] Monitoring behavior for '{package_name}' ({duration}s)...")
 
@@ -446,14 +479,21 @@ class SandboxManager:
             pass
 
         # Ensure CA certificate is installed in emulator for transparent SSL interception
+        t0_ca = time.time()
         self.ensure_ca_cert_installed()
+        logger.info(f"[PERFORMANCE] Stage 'ca_cert_check': {time.time() - t0_ca:.3f}s")
 
         net_mon = NetworkMonitor()
         frida_mon = FridaMonitor(adb_path=self.adb_path)
 
         # 1. Start monitors (automatically routes emulator proxy to 10.0.2.2:8080)
+        t0_net = time.time()
         net_mon.start(net_log_path, adb_path=self.adb_path)
+        logger.info(f"[PERFORMANCE] Stage 'mitmproxy_startup': {time.time() - t0_net:.3f}s")
+
+        t0_frida = time.time()
         frida_mon.attach(package_name)
+        logger.info(f"[PERFORMANCE] Stage 'frida_attachment': {time.time() - t0_frida:.3f}s")
 
         # 2. Automated UI exploration & observation window
         logger.info(f"Observing app behavior for {duration} seconds with active user interaction...")
@@ -462,12 +502,16 @@ class SandboxManager:
         # Run light UI exploration early in the observation window
         half_duration = max(2, duration // 2)
         time.sleep(2)
+        t0_ui = time.time()
         self.run_ui_exploration(package_name, event_count=25)
+        logger.info(f"[PERFORMANCE] Stage 'ui_exploration': {time.time() - t0_ui:.3f}s")
         remaining = max(1, duration - 4)
         time.sleep(remaining)
 
         # 3. Collect Logcat telemetry before stopping
+        t0_logcat = time.time()
         logcat_summary = self.collect_logcat_summary(package_name)
+        logger.info(f"[PERFORMANCE] Stage 'logcat_collection': {time.time() - t0_logcat:.3f}s")
 
         # 4. Stop monitors (automatically clears emulator proxy)
         frida_mon.detach()
@@ -476,6 +520,7 @@ class SandboxManager:
         # 5. Parse & structure collected events
         network_entries = net_mon.parse_log(net_log_path)
         frida_events = frida_mon.get_events()
+        logger.info(f"[PERFORMANCE] Stage 'dynamic_monitoring_total': {time.time() - t0_mon_total:.3f}s")
 
         return {
             "network_traffic": network_entries,
@@ -500,6 +545,7 @@ class SandboxManager:
         """
         from backend.app.dynamic_analysis.c2_detection import detect_c2
 
+        t0_c2 = time.time()
         network_traffic = []
         if isinstance(dynamic_results, dict):
             if "network_traffic" in dynamic_results:
@@ -516,4 +562,6 @@ class SandboxManager:
             elif "urls" in static_results or "ip_addresses" in static_results:
                 code_analysis_urls_ips = static_results
 
-        return detect_c2(network_traffic, code_analysis_urls_ips)
+        res = detect_c2(network_traffic, code_analysis_urls_ips)
+        logger.info(f"[PERFORMANCE] Stage 'c2_detection': {time.time() - t0_c2:.3f}s")
+        return res

@@ -12,6 +12,7 @@ Both functions are non-blocking on failure: if the API key is absent or the requ
 errors, they return a safe fallback string so the rest of the pipeline is unaffected.
 """
 
+import hashlib
 import os
 from typing import Any, Dict
 
@@ -24,6 +25,12 @@ _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 _NARRATIVE_MODEL = "meta-llama/llama-3.3-70b-instruct"
 _CODE_MODEL = "qwen/qwen-2.5-coder-32b-instruct"
 
+_client_instance = None
+_client_api_key_cached = None
+_narrative_cache = {}
+_code_cache = {}
+_unified_cache = {}
+
 
 def _get_openrouter_client():
     """Returns a configured OpenAI-compatible client pointed at OpenRouter.
@@ -31,6 +38,7 @@ def _get_openrouter_client():
     Returns None (with a logged warning) if the API key is missing or the
     openai package is not installed, so callers can degrade gracefully.
     """
+    global _client_instance, _client_api_key_cached
     api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
     if not api_key:
         logger.warning(
@@ -39,14 +47,19 @@ def _get_openrouter_client():
         )
         return None
 
+    if _client_instance is not None and _client_api_key_cached == api_key:
+        return _client_instance
+
     try:
         from openai import OpenAI  # type: ignore
 
-        client = OpenAI(
+        _client_instance = OpenAI(
             api_key=api_key,
             base_url=_OPENROUTER_BASE_URL,
+            timeout=12.0,
         )
-        return client
+        _client_api_key_cached = api_key
+        return _client_instance
     except ImportError:
         logger.warning(
             "The 'openai' package is not installed. "
@@ -122,6 +135,10 @@ def generate_threat_narrative(apk_data: Dict[str, Any]) -> str:
         "Produce the 3-paragraph executive summary now."
     )
 
+    cache_key = hashlib.sha256(user_prompt.encode("utf-8")).hexdigest()
+    if cache_key in _narrative_cache:
+        return _narrative_cache[cache_key]
+
     try:
         response = client.chat.completions.create(
             model=_NARRATIVE_MODEL,
@@ -131,12 +148,14 @@ def generate_threat_narrative(apk_data: Dict[str, Any]) -> str:
             ],
             max_tokens=700,
             temperature=0.3,
+            timeout=12.0,
         )
         narrative = response.choices[0].message.content.strip()
         logger.info(
             f"LLM threat narrative generated successfully via {_NARRATIVE_MODEL} "
             f"({len(narrative)} chars)."
         )
+        _narrative_cache[cache_key] = narrative
         return narrative
 
     except Exception as exc:
@@ -190,6 +209,10 @@ def analyze_suspicious_code(code_snippet: str) -> str:
         f"```java\n{code_snippet[:2000]}\n```"
     )
 
+    cache_key = hashlib.sha256(code_snippet[:2000].encode("utf-8")).hexdigest()
+    if cache_key in _code_cache:
+        return _code_cache[cache_key]
+
     try:
         response = client.chat.completions.create(
             model=_CODE_MODEL,
@@ -199,12 +222,14 @@ def analyze_suspicious_code(code_snippet: str) -> str:
             ],
             max_tokens=350,
             temperature=0.2,
+            timeout=12.0,
         )
         explanation = response.choices[0].message.content.strip()
         logger.info(
             f"LLM code analysis generated via {_CODE_MODEL} "
             f"({len(explanation)} chars)."
         )
+        _code_cache[cache_key] = explanation
         return explanation
 
     except Exception as exc:
@@ -290,6 +315,10 @@ def generate_unified_threat_narrative(correlated_data: Dict[str, Any]) -> str:
         "Produce the 3-paragraph executive threat narrative now."
     )
 
+    cache_key = hashlib.sha256(user_prompt.encode("utf-8")).hexdigest()
+    if cache_key in _unified_cache:
+        return _unified_cache[cache_key]
+
     try:
         response = client.chat.completions.create(
             model=_NARRATIVE_MODEL,
@@ -299,11 +328,13 @@ def generate_unified_threat_narrative(correlated_data: Dict[str, Any]) -> str:
             ],
             max_tokens=750,
             temperature=0.25,
+            timeout=12.0,
         )
         narrative = response.choices[0].message.content.strip()
         logger.info(
             f"Unified multi-vector threat narrative generated via {_NARRATIVE_MODEL} ({len(narrative)} chars)."
         )
+        _unified_cache[cache_key] = narrative
         return narrative
     except Exception as exc:
         logger.error(f"generate_unified_threat_narrative failed: {exc}")

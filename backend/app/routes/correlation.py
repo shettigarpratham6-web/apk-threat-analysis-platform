@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import time
 from typing import Optional
 
 from fastapi import APIRouter, Form, HTTPException, status
@@ -31,6 +32,7 @@ async def analyze_correlation(
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
 
+    start_time = time.perf_counter()
     try:
         correlation_result = correlate_apk(apk_id)
 
@@ -39,6 +41,7 @@ async def analyze_correlation(
         with open(correlation_file_path, "w", encoding="utf-8") as cf:
             json.dump(correlation_result, cf, indent=2)
 
+        logger.info(f"[PERFORMANCE] correlation_analysis duration: {time.perf_counter() - start_time:.4f}s")
         return correlation_result
     except Exception as err:
         logger.error(f"Error executing correlation analysis for apk_id '{apk_id}': {err}")

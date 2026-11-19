@@ -10,7 +10,7 @@ def hash_file(file_path: str) -> Dict[str, str]:
     sha256 = hashlib.sha256()
     md5 = hashlib.md5()
     with open(file_path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
+        for chunk in iter(lambda: f.read(65536), b""):
             sha256.update(chunk)
             md5.update(chunk)
     return {

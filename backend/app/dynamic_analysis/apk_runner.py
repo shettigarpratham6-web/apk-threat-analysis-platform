@@ -11,15 +11,24 @@ from sandbox.emulator_config import ADB_PATH
 
 logger = logging.getLogger("apk_runner")
 
+# In-memory package name resolution cache by APK path
+_PACKAGE_NAME_CACHE: dict = {}
+
 
 class ApkRunner:
     """Handles APK installation, package resolution, app launching, and cleanup via ADB."""
 
     def __init__(self, adb_path: str = ADB_PATH):
         self.adb_path = adb_path
+        self._cached_serial: Optional[str] = None
+        self._cached_serial_time: float = 0.0
 
-    def get_active_device_serial(self) -> Optional[str]:
-        """Detects the first online/ready ADB device or emulator serial."""
+    def get_active_device_serial(self, force: bool = False) -> Optional[str]:
+        """Detects the first online/ready ADB device or emulator serial with 3s TTL caching."""
+        now = time.time()
+        if not force and self._cached_serial and (now - self._cached_serial_time < 3.0):
+            return self._cached_serial
+
         try:
             res = subprocess.run([self.adb_path, "devices"], capture_output=True, text=True, check=False, timeout=5)
             output = res.stdout if res.returncode == 0 else ""
@@ -27,9 +36,12 @@ class ApkRunner:
             for line in lines:
                 parts = line.split()
                 if len(parts) >= 2 and parts[1] == "device":
+                    self._cached_serial = parts[0]
+                    self._cached_serial_time = now
                     return parts[0]
         except Exception as exc:
             logger.debug(f"Error querying ADB devices: {exc}")
+        self._cached_serial = None
         return None
 
     def wait_for_device(self, timeout: int = 20) -> Optional[str]:
@@ -62,7 +74,7 @@ class ApkRunner:
 
     def get_package_name(self, apk_path: str) -> str:
         """
-        Extracts the package name from the target APK using static_analysis apk_loader.
+        Extracts the package name from the target APK using static_analysis apk_loader with caching.
 
         :param apk_path: Path to the APK file on disk.
         :return: Package name string (e.g. 'com.example.app').
@@ -71,12 +83,18 @@ class ApkRunner:
         if not os.path.exists(apk_path):
             raise ValueError(f"APK file not found at path: {apk_path}")
 
+        abs_path = os.path.abspath(apk_path)
+        if abs_path in _PACKAGE_NAME_CACHE:
+            return _PACKAGE_NAME_CACHE[abs_path]
+
         apk_obj = extract_apk(apk_path)
         pkg_name = apk_obj.get_package()
         if not pkg_name:
             raise ValueError(f"Could not extract package name from APK: {apk_path}")
 
-        return str(pkg_name)
+        pkg_str = str(pkg_name)
+        _PACKAGE_NAME_CACHE[abs_path] = pkg_str
+        return pkg_str
 
     def install_apk(self, apk_path: str, max_retries: int = 3) -> str:
         """

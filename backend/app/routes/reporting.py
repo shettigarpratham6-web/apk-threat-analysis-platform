@@ -2,6 +2,7 @@
 
 import logging
 import os
+import time
 from typing import Optional
 
 from fastapi import APIRouter, Form, HTTPException, status, Query
@@ -31,8 +32,10 @@ async def generate_forensic_report(
             detail="Field 'apk_id' is required.",
         )
 
+    start_time = time.perf_counter()
     try:
         urls = generate_report(target_apk_id)
+        logger.info(f"[PERFORMANCE] report_generation duration: {time.perf_counter() - start_time:.4f}s")
         return urls
     except FileNotFoundError as fnf:
         raise HTTPException(status_code=404, detail=str(fnf))

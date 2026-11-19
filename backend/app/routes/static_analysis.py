@@ -4,6 +4,7 @@ import concurrent.futures
 import json
 import os
 import shutil
+import time
 import uuid
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
 
@@ -50,14 +51,18 @@ async def upload_and_analyze_apk(file: UploadFile = File(...)):
     file_path = os.path.join(UPLOADS_DIR, f"{apk_id}.apk")
     
     try:
+        t0_up = time.time()
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
         file_size = os.path.getsize(file_path)
         hashes = hash_file(file_path)
+        logger.info(f"[PERFORMANCE] Stage 'apk_upload_validation': {time.time() - t0_up:.3f}s")
         
+        t0_ext = time.time()
         extract_dir = os.path.join(upload_dir, "extracted")
         extraction_result = extract_apk_securely(file_path, extract_dir)
+        logger.info(f"[PERFORMANCE] Stage 'apk_extraction': {time.time() - t0_ext:.3f}s")
         
         return {
             "apk_id": apk_id,
@@ -93,9 +98,11 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
     
     file_path = os.path.join(UPLOADS_DIR, f"{apk_id}.apk")
     extract_dir = os.path.join(upload_dir, "extracted")
+    t0_pipeline = time.time()
     
     try:
         # 1. Validation & Save
+        t0_val = time.time()
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
@@ -110,16 +117,22 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
             "sha256": hashes["sha256"],
             "md5": hashes["md5"]
         }
+        logger.info(f"[PERFORMANCE] Stage 'apk_upload_validation': {time.time() - t0_val:.3f}s")
         
         # 2. Extract APK
+        t0_ext = time.time()
         extraction_data = extract_apk_securely(file_path, extract_dir)
         extraction_tree = extraction_data.get("tree", []) if isinstance(extraction_data, dict) else []
+        logger.info(f"[PERFORMANCE] Stage 'apk_extraction': {time.time() - t0_ext:.3f}s")
         
+        t0_andro = time.time()
         try:
             apk_obj = APK(file_path) if APK else None
         except Exception as e:
             logger.warning(f"Failed to load APK with Androguard: {e}")
             apk_obj = None
+        if apk_obj:
+            logger.info(f"[PERFORMANCE] Stage 'androguard_apk_load': {time.time() - t0_andro:.3f}s")
         
         # robust wrapper
         def safe_run(func, *args, default_ret={}):
@@ -130,9 +143,11 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
                 return {"error": str(e), **default_ret}
 
         # Concurrently execute independent static analysis phases (Phases 3-8) via ThreadPoolExecutor
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        t0_phases = time.time()
+        max_workers = min(8, os.cpu_count() or 6)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             fut_manifest = executor.submit(safe_run, analyze_manifest, apk_obj)
-            fut_cert = executor.submit(safe_run, scan_certificates, file_path, default_ret=[])
+            fut_cert = executor.submit(safe_run, scan_certificates, file_path, apk_obj, default_ret=[])
             fut_code = executor.submit(safe_run, analyze_code, file_path)
             fut_res = executor.submit(safe_run, analyze_resources, extract_dir)
             fut_native = executor.submit(safe_run, analyze_native_libs, extract_dir)
@@ -148,8 +163,10 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
             yara_results = fut_yara.result()
             if isinstance(yara_results, dict) and "error" in yara_results:
                 yara_results = []
+        logger.info(f"[PERFORMANCE] Stage 'concurrent_static_scanners': {time.time() - t0_phases:.3f}s")
             
         # 9. Static Feature Vector Extraction & Random Forest ML Classification
+        t0_ml = time.time()
         ml_clf = get_static_malware_classifier()
         feature_vector = ml_clf.extract_feature_vector_from_static_analysis(
             manifest_results=manifest_results,
@@ -161,8 +178,10 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
             feature_vector,
             default_ret={"prediction": "unknown", "malware_probability": 0.0, "benign_probability": 0.0}
         )
+        logger.info(f"[PERFORMANCE] Stage 'ml_classification': {time.time() - t0_ml:.3f}s")
 
         # 10. Risk Correlation Engine
+        t0_risk = time.time()
         risk_results = calculate_risk(
             manifest_results, 
             code_results, 
@@ -172,8 +191,10 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
             cert_results,
             ml_results
         )
+        logger.info(f"[PERFORMANCE] Stage 'risk_correlation': {time.time() - t0_risk:.3f}s")
         
         # 11. IOC Generator
+        t0_ioc = time.time()
         ioc_results = generate_iocs(metadata, code_results, resource_results, cert_results)
         
         # Save independent JSONs
@@ -183,6 +204,7 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
         # Save IOC CSV
         from backend.app.static_analysis.aggregator import generate_ioc_csv
         generate_ioc_csv(ioc_results, os.path.join(RESULTS_DIR, f"{apk_id}_ioc.csv"))
+        logger.info(f"[PERFORMANCE] Stage 'ioc_generation': {time.time() - t0_ioc:.3f}s")
             
         final_results = {
             "apk_id": apk_id,
@@ -206,6 +228,7 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
         with open(os.path.join(RESULTS_DIR, f"{apk_id}_static.json"), "w") as f:
             json.dump(final_results, f, indent=4)
             
+        logger.info(f"[PERFORMANCE] Stage 'total_static_analysis_pipeline': {time.time() - t0_pipeline:.3f}s")
         return final_results
         
     except HTTPException:

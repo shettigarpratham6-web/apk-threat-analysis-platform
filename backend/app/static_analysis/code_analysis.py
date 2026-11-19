@@ -1,4 +1,5 @@
 """Phase 5: DEX Code Analysis Engine (Hybrid Jadx/Apktool + Obfuscation)"""
+import concurrent.futures
 import os
 import re
 import shutil
@@ -32,6 +33,12 @@ NETWORK_PATTERNS = {
     "ipv6": r'\b(?:[A-Fa-f0-9]{1,4}:){7}[A-Fa-f0-9]{1,4}\b',
     "emails": r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
 }
+
+# Pre-compiled regex patterns for high-performance scanning
+_COMPILED_NETWORK_PATTERNS = {
+    k: re.compile(v) for k, v in NETWORK_PATTERNS.items()
+}
+_STR_EXTRACT_RE = re.compile(r'"([^"]*)"')
 
 SUSPICIOUS_APIS = {
     "Runtime.exec": {
@@ -187,9 +194,10 @@ def analyze_code(apk_path: str) -> Dict[str, Any]:
     codebert_candidates = []
 
     try:
-        # Try JADX first (parallelized with 4 worker threads for fast de-compilation)
+        # Try JADX first (parallelized with worker threads matching CPU cores)
+        jadx_workers = str(min(8, os.cpu_count() or 4))
         try:
-            cmd = [jadx_path, "-d", temp_dir, "--no-res", "--no-imports", "--threads-count", "4", apk_path]
+            cmd = [jadx_path, "-d", temp_dir, "--no-res", "--no-imports", "--threads-count", jadx_workers, apk_path]
             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120, check=True)
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
             logger.warning(f"Jadx failed or timed out ({str(e)}). Falling back to Apktool.")
@@ -208,60 +216,78 @@ def analyze_code(apk_path: str) -> Dict[str, Any]:
             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
             
         # Scan files (Java or Smali)
+        candidate_files = []
         for root_dir, dirs, files in os.walk(temp_dir):
             for file in files:
-                if not file.endswith(file_ext):
-                    continue
-                    
-                filepath = os.path.join(root_dir, file)
-                rel_path = os.path.relpath(filepath, temp_dir)
-                class_name = os.path.splitext(file)[0]
-                
-                try:
-                    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-                        lines = f.readlines()
-                        
-                    for idx, line in enumerate(lines):
-                        line_stripped = line.strip()
-                        if not line_stripped or line_stripped.startswith(("#", "//", ".")):
-                            continue
-                            
-                        # Extract strings for entropy analysis ("...")
-                        str_matches = re.findall(r'"([^"]*)"', line_stripped)
+                if file.endswith(file_ext):
+                    candidate_files.append((os.path.join(root_dir, file), file))
+
+        def _scan_single_file(item):
+            filepath, filename = item
+            rel_path = os.path.relpath(filepath, temp_dir)
+            class_name = os.path.splitext(filename)[0]
+            local_extracted_strings = set()
+            local_net = {"urls": set(), "domains": set(), "ipv4": set(), "ipv6": set(), "emails": set()}
+            local_susp_apis = []
+            local_mal_inds = []
+            local_candidates = []
+
+            try:
+                with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                    lines = f.readlines()
+
+                for idx, line in enumerate(lines):
+                    line_stripped = line.strip()
+                    if not line_stripped or line_stripped.startswith(("#", "//", ".")):
+                        continue
+
+                    # Extract strings for entropy analysis ("...")
+                    if '"' in line_stripped:
+                        str_matches = _STR_EXTRACT_RE.findall(line_stripped)
                         for s in str_matches:
                             if len(s) >= 20:
-                                extracted_strings.add(s)
-                            
-                        # Network Indicators
-                        for key, pattern in NETWORK_PATTERNS.items():
-                            matches = re.findall(pattern, line_stripped)
-                            for match in matches:
-                                if match not in results["network_indicators"][key]:
-                                    results["network_indicators"][key].append(match)
-                                    
-                        # Suspicious APIs with detailed security evidence
-                        for api, meta in SUSPICIOUS_APIS.items():
-                            if api in line_stripped:
-                                severity = meta["severity"] if isinstance(meta, dict) else meta
-                                category = meta.get("category", "General") if isinstance(meta, dict) else "General"
-                                rationale = meta.get("rationale", "") if isinstance(meta, dict) else ""
+                                local_extracted_strings.add(s)
 
-                                results["suspicious_apis"].append({
-                                    "class_name": class_name,
-                                    "file_path": rel_path,
-                                    "line_number": idx + 1,
-                                    "snippet": line_stripped[:120],
-                                    "severity": severity,
-                                    "category": category,
-                                    "rationale": rationale,
-                                    "api": api,
-                                })
-                                # Capture surrounding context for CodeBERT and AI analysis
+                    # Network Indicators with fast substring pre-checks
+                    if "http://" in line_stripped or "https://" in line_stripped:
+                        for m in _COMPILED_NETWORK_PATTERNS["urls"].findall(line_stripped):
+                            local_net["urls"].add(m)
+                    if "@" in line_stripped:
+                        for m in _COMPILED_NETWORK_PATTERNS["emails"].findall(line_stripped):
+                            local_net["emails"].add(m)
+                    if "." in line_stripped:
+                        for m in _COMPILED_NETWORK_PATTERNS["domains"].findall(line_stripped):
+                            local_net["domains"].add(m)
+                        if any(c.isdigit() for c in line_stripped):
+                            for m in _COMPILED_NETWORK_PATTERNS["ipv4"].findall(line_stripped):
+                                local_net["ipv4"].add(m)
+                    if ":" in line_stripped:
+                        for m in _COMPILED_NETWORK_PATTERNS["ipv6"].findall(line_stripped):
+                            local_net["ipv6"].add(m)
+
+                    # Suspicious APIs with detailed security evidence
+                    for api, meta in SUSPICIOUS_APIS.items():
+                        if api in line_stripped:
+                            severity = meta["severity"] if isinstance(meta, dict) else meta
+                            category = meta.get("category", "General") if isinstance(meta, dict) else "General"
+                            rationale = meta.get("rationale", "") if isinstance(meta, dict) else ""
+
+                            local_susp_apis.append({
+                                "class_name": class_name,
+                                "file_path": rel_path,
+                                "line_number": idx + 1,
+                                "snippet": line_stripped[:120],
+                                "severity": severity,
+                                "category": category,
+                                "rationale": rationale,
+                                "api": api,
+                            })
+                            if len(local_candidates) < 15:
                                 ctx_start = max(0, idx - 4)
                                 ctx_end = min(len(lines), idx + 8)
                                 ctx_code = "".join(lines[ctx_start:ctx_end])
 
-                                codebert_candidates.append({
+                                local_candidates.append({
                                     "code": ctx_code,
                                     "class_name": class_name,
                                     "file_path": rel_path,
@@ -271,26 +297,27 @@ def analyze_code(apk_path: str) -> Dict[str, Any]:
                                     "category": category,
                                     "has_trigger": any(kw in ctx_code for kw in _LLM_TRIGGER_KEYWORDS),
                                 })
-                                
-                        # Malware Indicators with detailed rationales
-                        for ind, meta in MALWARE_INDICATORS.items():
-                            if meta.get("heuristic") and ind not in line_stripped:
-                                continue
-                            if ind in line_stripped and not meta.get("heuristic"):
-                                results["malware_indicators"].append({
-                                    "class_name": class_name,
-                                    "file_path": rel_path,
-                                    "line_number": idx + 1,
-                                    "snippet": line_stripped[:120],
-                                    "severity": meta["severity"],
-                                    "category": meta.get("category", "Malware Indicator"),
-                                    "why_flagged": meta["reason"],
-                                })
+
+                    # Malware Indicators with detailed rationales
+                    for ind, meta in MALWARE_INDICATORS.items():
+                        if meta.get("heuristic") and ind not in line_stripped:
+                            continue
+                        if ind in line_stripped and not meta.get("heuristic"):
+                            local_mal_inds.append({
+                                "class_name": class_name,
+                                "file_path": rel_path,
+                                "line_number": idx + 1,
+                                "snippet": line_stripped[:120],
+                                "severity": meta["severity"],
+                                "category": meta.get("category", "Malware Indicator"),
+                                "why_flagged": meta["reason"],
+                            })
+                            if len(local_candidates) < 15:
                                 ctx_start = max(0, idx - 4)
                                 ctx_end = min(len(lines), idx + 8)
                                 ctx_code = "".join(lines[ctx_start:ctx_end])
 
-                                codebert_candidates.append({
+                                local_candidates.append({
                                     "code": ctx_code,
                                     "class_name": class_name,
                                     "file_path": rel_path,
@@ -301,17 +328,29 @@ def analyze_code(apk_path: str) -> Dict[str, Any]:
                                     "has_trigger": any(kw in ctx_code for kw in _LLM_TRIGGER_KEYWORDS),
                                 })
 
-                    # If no suspicious API triggered, sample file if small
-                    if len(codebert_candidates) < 5 and len(lines) > 5 and len(lines) < 80:
-                        codebert_candidates.append({
-                            "code": "".join(lines[:40]),
-                            "class_name": class_name,
-                            "file_path": rel_path,
-                            "line_number": 1,
-                        })
+                # If no suspicious API triggered, sample file if small
+                if len(local_candidates) < 2 and 5 < len(lines) < 80:
+                    local_candidates.append({
+                        "code": "".join(lines[:40]),
+                        "class_name": class_name,
+                        "file_path": rel_path,
+                        "line_number": 1,
+                    })
 
-                except Exception as e:
-                    logger.warning(f"Failed to read {filepath}: {e}")
+            except Exception as e:
+                logger.warning(f"Failed to read {filepath}: {e}")
+
+            return local_extracted_strings, local_net, local_susp_apis, local_mal_inds, local_candidates
+
+        scan_workers = min(8, os.cpu_count() or 4)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=scan_workers) as pool:
+            for s_strings, s_net, s_apis, s_mals, s_cands in pool.map(_scan_single_file, candidate_files):
+                extracted_strings.update(s_strings)
+                for k, v in s_net.items():
+                    results["network_indicators"][k].extend(v)
+                results["suspicious_apis"].extend(s_apis)
+                results["malware_indicators"].extend(s_mals)
+                codebert_candidates.extend(s_cands)
 
         # Targeted, non-blocking LLM de-obfuscation: analyze AT MOST the top 1 highest-impact candidate
         results["ai_code_insight"] = None

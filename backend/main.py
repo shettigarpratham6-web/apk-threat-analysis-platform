@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -10,7 +11,37 @@ from backend.app.routes.dynamic_analysis import router as dynamic_analysis_route
 from backend.app.routes.correlation import router as correlation_router
 from backend.app.routes.reporting import router as reporting_router
 
-app = FastAPI(title="APK Threat Analysis Platform")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Pre-warm static analysis caches, ML models, and YARA rules to eliminate cold-start latency."""
+    import asyncio
+    import logging
+
+    startup_logger = logging.getLogger("startup_warmup")
+
+    def _warm():
+        try:
+            from backend.app.static_analysis.signature_check import get_compiled_rules
+            get_compiled_rules()
+            startup_logger.info("YARA rules pre-compiled and cached successfully.")
+        except Exception as exc:
+            startup_logger.debug(f"YARA pre-compile note: {exc}")
+
+        try:
+            from backend.core.static_analysis.ml_classifier import get_static_malware_classifier
+            clf = get_static_malware_classifier()
+            if clf.is_ready():
+                startup_logger.info("Static malware classifier pre-warmed successfully.")
+        except Exception as exc:
+            startup_logger.debug(f"ML pre-warm note: {exc}")
+
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, _warm)
+    yield
+
+
+app = FastAPI(title="APK Threat Analysis Platform", lifespan=lifespan)
 
 # Enable CORS for local browser frontend communication (Hardened against CSRF)
 ALLOWED_ORIGINS = [
