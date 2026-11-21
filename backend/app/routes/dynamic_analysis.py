@@ -10,6 +10,7 @@ import time
 import uuid
 from typing import Optional, Tuple
 from fastapi import APIRouter, Body, File, Form, HTTPException, Response, UploadFile, status
+from pydantic import BaseModel
 
 from backend.app.dynamic_analysis.sandbox_manager import SandboxManager
 
@@ -221,8 +222,8 @@ async def monitor_apk_behavior(
         )
 
 
-class C2DetectRequest(BaseModel if 'BaseModel' in globals() else object):
-    pass
+class C2DetectRequest(BaseModel):
+    apk_id: Optional[str] = None
 
 
 @router.post("/c2-detect")
