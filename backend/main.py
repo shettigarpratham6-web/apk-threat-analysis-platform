@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, Request, status
+from fastapi import Depends, FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -10,6 +10,10 @@ from backend.app.routes.static_analysis import router as static_analysis_router
 from backend.app.routes.dynamic_analysis import router as dynamic_analysis_router
 from backend.app.routes.correlation import router as correlation_router
 from backend.app.routes.reporting import router as reporting_router
+from backend.app.routes.auth import router as auth_router, get_current_user
+from backend.config import AUTH_PROTECT_API
+from backend.database.database import Base, engine
+import backend.database.models  # noqa: F401  (registers tables on Base.metadata)
 
 
 @asynccontextmanager
@@ -19,6 +23,9 @@ async def lifespan(app: FastAPI):
     import logging
 
     startup_logger = logging.getLogger("startup_warmup")
+
+    # Create the users table on first run (SQLite file at backend/data/app.db by default).
+    Base.metadata.create_all(bind=engine)
 
     def _warm():
         try:
@@ -76,10 +83,14 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-app.include_router(static_analysis_router, prefix="/api/static-analysis", tags=["Static Analysis"])
-app.include_router(dynamic_analysis_router, prefix="/api/dynamic-analysis", tags=["Dynamic Analysis"])
-app.include_router(correlation_router, prefix="/api/correlation", tags=["Correlation & Risk Scoring"])
-app.include_router(reporting_router, prefix="/api/report", tags=["Forensic Reporting"])
+# When AUTH_PROTECT_API is true (default) every analysis endpoint requires a valid session.
+_protected = [Depends(get_current_user)] if AUTH_PROTECT_API else []
+
+app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(static_analysis_router, prefix="/api/static-analysis", tags=["Static Analysis"], dependencies=_protected)
+app.include_router(dynamic_analysis_router, prefix="/api/dynamic-analysis", tags=["Dynamic Analysis"], dependencies=_protected)
+app.include_router(correlation_router, prefix="/api/correlation", tags=["Correlation & Risk Scoring"], dependencies=_protected)
+app.include_router(reporting_router, prefix="/api/report", tags=["Forensic Reporting"], dependencies=_protected)
 
 
 @app.get("/health")

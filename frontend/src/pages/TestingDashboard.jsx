@@ -57,7 +57,7 @@ const DYNAMIC_STAGES = [
   { id: "dyn_report", title: "6. Unified Forensic Report", subtitle: "Risk correlation & artifacts", status: "pending" },
 ];
 
-export default function TestingDashboard({ onReturnHome }) {
+export default function TestingDashboard({ onReturnHome, user, onLogout }) {
   const [activeTab, setActiveTab] = useState("static"); // "static" or "dynamic"
   const [staticStages, setStaticStages] = useState(STATIC_STAGES);
   const [dynamicStages, setDynamicStages] = useState(DYNAMIC_STAGES);
@@ -291,6 +291,16 @@ export default function TestingDashboard({ onReturnHome }) {
           >
             HOME
           </button>
+
+          {onLogout && (
+            <button
+              className="cyber-back-btn"
+              onClick={onLogout}
+              title={user ? `Signed in as ${user.email}` : "Sign out"}
+            >
+              LOGOUT
+            </button>
+          )}
 
           <a
             href="http://localhost:8000/docs"

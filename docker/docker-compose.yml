@@ -20,6 +20,7 @@ services:
     volumes:
       - ../backend/uploads:/app/backend/uploads
       - ../backend/results:/app/backend/results
+      - ../backend/data:/app/backend/data
 
   frontend:
     build:

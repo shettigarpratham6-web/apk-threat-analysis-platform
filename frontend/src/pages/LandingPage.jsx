@@ -1,28 +1,9 @@
-import React, { useEffect, useRef } from "react";
+import React from "react";
+import useVantaGlobe from "../hooks/useVantaGlobe";
 import "./LandingPage.css";
 
-export default function LandingPage({ onStartTesting }) {
-  const bgRef = useRef(null);
-
-  useEffect(() => {
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduceMotion || !window.VANTA || !window.THREE || !bgRef.current) return;
-    const effect = window.VANTA.GLOBE({
-      el: bgRef.current,
-      THREE: window.THREE,
-      mouseControls: true,
-      touchControls: true,
-      gyroControls: false,
-      minHeight: 200.0,
-      minWidth: 200.0,
-      scale: 1.0,
-      scaleMobile: 1.0,
-      color: 0x10b981,
-      color2: 0x047857,
-      backgroundColor: 0x050811,
-    });
-    return () => effect.destroy();
-  }, []);
+export default function LandingPage({ user, onStartTesting, onSignIn }) {
+  const bgRef = useVantaGlobe();
 
   return (
     <div className="landing-page">
@@ -42,9 +23,9 @@ export default function LandingPage({ onStartTesting }) {
 
           <button
             className="nav-signin"
-            onClick={onStartTesting}
+            onClick={user ? onStartTesting : onSignIn}
           >
-            OPEN ANALYZER
+            {user ? "OPEN ANALYZER" : "SIGN IN"}
           </button>
         </nav>
 

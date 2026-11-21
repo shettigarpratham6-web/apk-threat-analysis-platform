@@ -1,10 +1,17 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
+// Always send the httpOnly session cookie to the API.
+const apiFetch = (url, options = {}) => fetch(url, { credentials: "include", ...options });
+
 function getHeaders(customHeaders = {}) {
   return { ...customHeaders };
 }
 
 async function handleResponse(response) {
+  if (response.status === 401) {
+    // Session expired or missing: AuthProvider clears the user and <App> redirects to /login.
+    window.dispatchEvent(new Event("auth:expired"));
+  }
   if (!response.ok) {
     let errorDetail = `HTTP ${response.status} ${response.statusText}`;
     try {
@@ -21,7 +28,7 @@ async function handleResponse(response) {
 }
 
 export async function checkSystemHealth() {
-  const response = await fetch(`${API_BASE_URL}/health`);
+  const response = await apiFetch(`${API_BASE_URL}/health`);
   return handleResponse(response);
 }
 
@@ -29,7 +36,7 @@ export async function uploadApk(file) {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${API_BASE_URL}/api/static-analysis/upload`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/static-analysis/upload`, {
     method: "POST",
     headers: getHeaders(),
     body: formData,
@@ -41,7 +48,7 @@ export async function uploadAndAnalyzeStatic(file) {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${API_BASE_URL}/api/static-analysis/analyze`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/static-analysis/analyze`, {
     method: "POST",
     headers: getHeaders(),
     body: formData,
@@ -50,7 +57,7 @@ export async function uploadAndAnalyzeStatic(file) {
 }
 
 export async function startSandbox() {
-  const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/sandbox/start`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/dynamic-analysis/sandbox/start`, {
     method: "POST",
     headers: getHeaders(),
   });
@@ -58,7 +65,7 @@ export async function startSandbox() {
 }
 
 export async function stopSandbox() {
-  const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/sandbox/stop`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/dynamic-analysis/sandbox/stop`, {
     method: "POST",
     headers: getHeaders(),
   });
@@ -69,7 +76,7 @@ export async function runApk(apkId) {
   const formData = new FormData();
   formData.append("apk_id", apkId);
 
-  const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/run`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/dynamic-analysis/run`, {
     method: "POST",
     headers: getHeaders(),
     body: formData,
@@ -85,7 +92,7 @@ export async function monitorBehavior(apkId, packageName, duration = 15) {
   }
   formData.append("duration", duration.toString());
 
-  const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/monitor`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/dynamic-analysis/monitor`, {
     method: "POST",
     headers: getHeaders(),
     body: formData,
@@ -97,7 +104,7 @@ export async function detectC2(apkId) {
   const formData = new FormData();
   formData.append("apk_id", apkId);
 
-  const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/c2-detect`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/dynamic-analysis/c2-detect`, {
     method: "POST",
     headers: getHeaders(),
     body: formData,
@@ -109,7 +116,7 @@ export async function checkServers(apkId) {
   const formData = new FormData();
   formData.append("apk_id", apkId);
 
-  const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/check-servers`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/dynamic-analysis/check-servers`, {
     method: "POST",
     headers: getHeaders(),
     body: formData,
@@ -121,7 +128,7 @@ export async function correlate(apkId) {
   const formData = new FormData();
   formData.append("apk_id", apkId);
 
-  const response = await fetch(`${API_BASE_URL}/api/correlation/analyze`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/correlation/analyze`, {
     method: "POST",
     headers: getHeaders(),
     body: formData,
@@ -130,7 +137,7 @@ export async function correlate(apkId) {
 }
 
 export async function generateReport(apkId) {
-  const response = await fetch(`${API_BASE_URL}/api/report/generate/${apkId}`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/report/generate/${apkId}`, {
     method: "POST",
     headers: getHeaders(),
   });
@@ -162,14 +169,14 @@ export function getDeviceScreenUrl() {
 }
 
 export async function getDeviceInfo() {
-  const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/screen/info`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/dynamic-analysis/screen/info`, {
     headers: getHeaders(),
   });
   return handleResponse(response);
 }
 
 export async function sendDeviceTouch(payload) {
-  const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/screen/touch`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/dynamic-analysis/screen/touch`, {
     method: "POST",
     headers: getHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(payload),
@@ -178,7 +185,7 @@ export async function sendDeviceTouch(payload) {
 }
 
 export async function wakeDevice() {
-  const response = await fetch(`${API_BASE_URL}/api/dynamic-analysis/sandbox/wake`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/dynamic-analysis/sandbox/wake`, {
     method: "POST",
     headers: getHeaders(),
   });

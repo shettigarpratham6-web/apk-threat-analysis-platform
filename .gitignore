@@ -38,3 +38,6 @@ datasets/Android Malware Analysis CSV Dataset/
 .DS_Store
 Thumbs.db
 
+# Local auth database
+backend/data/
+
