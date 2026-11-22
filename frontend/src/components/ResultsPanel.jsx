@@ -410,17 +410,199 @@ export default function ResultsPanel({ stageName, data, stageId }) {
     
     if (stageId === "risk") {
       const codebertData = data.codebert_similarity || data.code_analysis?.codebert_similarity;
+      const risk = data.risk_analysis || {};
+      const overall = Number(data.overall ?? risk.overall ?? risk.score ?? 0);
+      const level = data.level || risk.level || "CLEAN";
+      const confidence = data.confidence || risk.confidence || "medium";
+      const publisherVerified = data.publisher_verified ?? risk.publisher_verified ?? false;
+      const publisherMismatch = data.publisher_mismatch ?? risk.publisher_mismatch ?? false;
+      const category = data.category || risk.category || "generic";
+      const categorySource = data.category_source || risk.category_source || "default";
+      const scores = data.scores || risk.scores || {};
+      const permissionFindings = data.permission_findings || risk.permission_findings || [];
+      const toxicCombinations = data.toxic_combinations || risk.toxic_combinations || [];
+      const topReasons = data.top_reasons || risk.top_reasons || risk.factors || [];
+      const timings = data.timings || risk.timings || {};
+
+      const subScoreLabels = {
+        permission_risk: "Permission Risk",
+        overprivilege: "Overprivilege",
+        sensitive_api: "Sensitive API",
+        dynamic_code: "Dynamic Code",
+        component_exposure: "Component Exposure",
+        network_security: "Network Security",
+        hardcoded_secrets: "Hardcoded Secrets",
+        obfuscation: "Obfuscation",
+        signature_integrity: "Signature Integrity",
+        malware_signature: "Malware Signature",
+      };
+
+      const levelColor =
+        level === "CRITICAL" || level === "Critical"
+          ? "#ef4444"
+          : level === "HIGH" || level === "High"
+          ? "#f97316"
+          : level === "MEDIUM" || level === "Medium"
+          ? "#eab308"
+          : "#22c55e";
+
       return (
         <div>
-          <h4>Threat Correlation Engine</h4>
-          <div style={{display: "flex", alignItems: "center", gap: "20px", marginBottom: "20px"}}>
-             <div style={{fontSize: "48px", fontWeight: "bold", color: data.risk_analysis?.level === "Critical" ? "#ef4444" : (data.risk_analysis?.level === "High" ? "#f97316" : (data.risk_analysis?.level === "Medium" ? "#eab308" : "#22c55e"))}}>
-                {data.risk_analysis?.score} / 100
-             </div>
-             <div style={{fontSize: "24px"}}>{data.risk_analysis?.level} Risk</div>
+          <h4>Static Risk & Threat Engine v2</h4>
+
+          {/* Headline Overall Score & Publisher Status */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "20px", marginBottom: "20px", padding: "16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+              <div style={{ fontSize: "44px", fontWeight: "bold", color: levelColor }}>
+                {overall.toFixed(1)} <span style={{ fontSize: "20px", color: "var(--text-secondary, #94a3b8)" }}>/ 100</span>
+              </div>
+              <div>
+                <div style={{ fontSize: "22px", fontWeight: "bold", color: levelColor }}>
+                  {level.toUpperCase()} RISK
+                </div>
+                <div style={{ fontSize: "13px", color: "var(--text-secondary, #94a3b8)" }}>
+                  Confidence: <span style={{ textTransform: "uppercase", color: "#f1f5f9" }}>{confidence}</span> | Category: <span style={{ color: "#38bdf8" }}>{category}</span> ({categorySource})
+                </div>
+              </div>
+            </div>
+
+            <div>
+              {publisherVerified ? (
+                <span style={{ fontSize: "12px", background: "rgba(0, 255, 36, 0.12)", color: "#00ff24", border: "1px solid #00ff24", padding: "6px 12px", borderRadius: "4px", fontWeight: "600" }}>
+                  [VERIFIED PUBLISHER]
+                </span>
+              ) : publisherMismatch ? (
+                <span style={{ fontSize: "12px", background: "rgba(239, 68, 68, 0.2)", color: "#ef4444", border: "1px solid #ef4444", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold" }}>
+                  [WARNING: PUBLISHER MISMATCH / IMPERSONATION RISK]
+                </span>
+              ) : (
+                <span style={{ fontSize: "12px", background: "rgba(255, 255, 255, 0.05)", color: "#94a3b8", border: "1px solid rgba(255, 255, 255, 0.15)", padding: "6px 12px", borderRadius: "4px" }}>
+                  Publisher: Unverified
+                </span>
+              )}
+            </div>
           </div>
 
-          {data.risk_analysis?.executive_summary && (
+          {/* Timings row */}
+          {timings && Object.keys(timings).length > 0 && (
+            <div style={{ marginBottom: "20px", padding: "8px 14px", background: "rgba(0,0,0,0.3)", borderRadius: "6px", fontSize: "12px", color: "#94a3b8", display: "flex", gap: "15px", flexWrap: "wrap" }}>
+              <span>Analysis Timings:</span>
+              <span>Manifest: <strong>{timings.manifest_s ?? 0}s</strong></span>
+              <span>Unzip: <strong>{timings.unzip_s ?? 0}s</strong></span>
+              <span>DEX Scan: <strong>{timings.dex_scan_s ?? 0}s</strong></span>
+              <span>YARA: <strong>{timings.yara_s ?? 0}s</strong></span>
+              <span>Total: <strong style={{ color: "var(--neon-green)" }}>{timings.total_s ?? 0}s</strong></span>
+            </div>
+          )}
+
+          {/* Toxic Capability Combinations Alert */}
+          {toxicCombinations && toxicCombinations.length > 0 && (
+            <div style={{ marginBottom: "24px", padding: "16px", borderRadius: "8px", background: "rgba(239, 68, 68, 0.1)", border: "1px solid #ef4444" }}>
+              <h5 style={{ margin: "0 0 10px 0", color: "#f87171", display: "flex", alignItems: "center", gap: "8px" }}>
+                [CRITICAL] Toxic Capability Combinations Detected ({toxicCombinations.length})
+              </h5>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {toxicCombinations.map((combo, idx) => (
+                  <div key={idx} style={{ fontSize: "13px", padding: "8px", background: "rgba(0,0,0,0.3)", borderRadius: "4px" }}>
+                    <strong style={{ color: "#fca5a5" }}>{combo.name}:</strong> {combo.description}
+                    {combo.bump && <span style={{ marginLeft: "8px", color: "#ef4444" }}>(+{Math.round(combo.bump * 100)} pts)</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 10 Sub-Scores Grid */}
+          <h5 style={{ marginBottom: "12px", fontSize: "14px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            10 Static Risk Sub-Scores
+          </h5>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: "12px", marginBottom: "25px" }}>
+            {Object.keys(subScoreLabels).map((key) => {
+              const val = Number(scores[key] ?? 0);
+              const color = val >= 75 ? "#ef4444" : val >= 50 ? "#f97316" : val >= 25 ? "#eab308" : "#22c55e";
+              return (
+                <div key={key} style={{ padding: "12px", borderRadius: "6px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "4px" }}>{subScoreLabels[key]}</div>
+                  <div style={{ fontSize: "20px", fontWeight: "bold", color }}>
+                    {val.toFixed(1)} <span style={{ fontSize: "11px", color: "#64748b" }}>/ 100</span>
+                  </div>
+                  <div style={{ height: "4px", width: "100%", background: "rgba(255,255,255,0.1)", borderRadius: "2px", marginTop: "8px", overflow: "hidden" }}>
+                    <div style={{ width: `${Math.min(100, Math.max(0, val))}%`, height: "100%", background: color }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Top Reasons */}
+          {topReasons && topReasons.length > 0 && (
+            <div style={{ marginBottom: "25px" }}>
+              <h5>Top Contributing Risk Factors</h5>
+              <ul style={{ paddingLeft: "20px", margin: "10px 0" }}>
+                {topReasons.map((f, i) => (
+                  <li key={i} style={{ marginBottom: "6px", fontSize: "13.5px" }}>{f}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Permission Findings Table */}
+          {permissionFindings && permissionFindings.length > 0 && (
+            <div style={{ marginBottom: "30px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                <h5 style={{ margin: 0 }}>Category-Aware Permission Profiling ({permissionFindings.length})</h5>
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table className="results-table">
+                  <thead>
+                    <tr>
+                      <th>Permission</th>
+                      <th>Severity</th>
+                      <th>Expected for Category</th>
+                      <th>Code Evidence</th>
+                      <th>Verdict</th>
+                      <th>Points</th>
+                      <th>Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {permissionFindings.map((pf, idx) => {
+                      const verdict = pf.verdict || "NORMAL";
+                      const isUnjustified = verdict === "UNJUSTIFIED";
+                      const isUnexpected = verdict === "USED_BUT_UNEXPECTED";
+                      const isQuestionable = verdict === "QUESTIONABLE";
+                      const badgeStyle = isUnjustified
+                        ? { background: "rgba(239, 68, 68, 0.2)", color: "#ef4444", border: "1px solid #ef4444" }
+                        : isUnexpected
+                        ? { background: "rgba(249, 115, 22, 0.2)", color: "#fb923c", border: "1px solid #fb923c" }
+                        : isQuestionable
+                        ? { background: "rgba(234, 179, 8, 0.2)", color: "#facc15", border: "1px solid #facc15" }
+                        : { background: "rgba(34, 197, 94, 0.1)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.3)" };
+
+                      return (
+                        <tr key={idx} style={isUnjustified ? { background: "rgba(239, 68, 68, 0.05)" } : {}}>
+                          <td className="code-font" style={{ fontWeight: "600", fontSize: "12px" }}>{pf.permission}</td>
+                          <td>{pf.severity}/10</td>
+                          <td style={{ textTransform: "capitalize" }}>{pf.expected_for_category || "none"}</td>
+                          <td>{pf.code_evidence ? <span style={{ color: "#22c55e" }}>Yes</span> : <span style={{ color: "#94a3b8" }}>No</span>}</td>
+                          <td>
+                            <span style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "4px", fontWeight: "bold", ...badgeStyle }}>
+                              {verdict}
+                            </span>
+                          </td>
+                          <td style={{ fontWeight: "bold" }}>{Number(pf.points || 0).toFixed(1)}</td>
+                          <td style={{ fontSize: "12.5px", color: "var(--text-secondary, #cbd5e1)" }}>{pf.reason}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Executive Summary (if LLM generated) */}
+          {risk.executive_summary && (
             <div style={{
               marginTop: "16px",
               marginBottom: "24px",
@@ -439,10 +621,11 @@ export default function ResultsPanel({ stageName, data, stageId }) {
                 </span>
               </div>
               <div style={{ fontSize: "13.5px", lineHeight: "1.7", color: "#e2e8f0", whiteSpace: "pre-line" }}>
-                {data.risk_analysis.executive_summary}
+                {risk.executive_summary}
               </div>
             </div>
           )}
+
           {data.ml_classification && (
             <div style={{marginTop: "15px", marginBottom: "20px", padding: "14px", borderRadius: "8px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)"}}>
               <h4 style={{margin: "0 0 10px 0", display: "flex", alignItems: "center", gap: "8px"}}>
@@ -508,11 +691,6 @@ export default function ResultsPanel({ stageName, data, stageId }) {
               </p>
             </div>
           )}
-
-          <h4>Risk Factors</h4>
-          <ul>
-             {(data.risk_analysis?.factors || []).map((f, i) => <li key={i}>{f}</li>)}
-          </ul>
           
           <h4 style={{marginTop: "20px"}}>Certificates</h4>
           <table className="results-table">

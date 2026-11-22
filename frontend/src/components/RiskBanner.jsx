@@ -5,22 +5,34 @@ export default function RiskBanner({ correlationData }) {
     return null;
   }
 
-  const { score, level, factors, recommendations } = correlationData;
+  const score = correlationData.overall ?? correlationData.score ?? correlationData.risk_score ?? 0;
+  const level = correlationData.level || correlationData.threat_level || correlationData.risk_label || "Low";
+  const factors = correlationData.top_reasons || correlationData.factors || [];
+  const recommendations = correlationData.recommendations || [];
+  const publisherVerified = correlationData.publisher_verified;
 
+  const numScore = Number(score);
   let bannerClass = "low";
-  if (score >= 80) bannerClass = "critical";
-  else if (score >= 60) bannerClass = "high";
-  else if (score >= 40) bannerClass = "medium";
+  if (numScore >= 75) bannerClass = "critical";
+  else if (numScore >= 50) bannerClass = "high";
+  else if (numScore >= 25) bannerClass = "medium";
 
   return (
     <div className="risk-container">
       <div className={`risk-banner risk-banner-${bannerClass}`}>
         <div className="risk-banner-content">
-          <h2 className="risk-label-title">{level} Risk</h2>
-          <p className="risk-subtitle">Static Threat Correlation Engine</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            <h2 className="risk-label-title">{level} Risk</h2>
+            {publisherVerified && (
+              <span style={{ fontSize: "12px", background: "rgba(0,255,36,0.15)", color: "#00ff24", border: "1px solid #00ff24", padding: "2px 8px", borderRadius: "4px" }}>
+                [VERIFIED PUBLISHER]
+              </span>
+            )}
+          </div>
+          <p className="risk-subtitle">Static Threat Analysis Engine v2</p>
         </div>
         <div className="risk-banner-score">
-          <span className="score-num">{score}</span>
+          <span className="score-num">{numScore.toFixed(1)}</span>
           <span className="score-denom">/ 100</span>
         </div>
       </div>

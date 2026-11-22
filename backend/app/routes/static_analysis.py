@@ -1,5 +1,6 @@
 """FastAPI router for static analysis endpoints."""
 
+import asyncio
 import concurrent.futures
 import json
 import os
@@ -18,6 +19,7 @@ from backend.app.static_analysis.cert_scanner import scan_certificates
 from loguru import logger
 from backend.app.static_analysis.aggregator import calculate_risk, generate_iocs
 from backend.core.static_analysis.ml_classifier import get_static_malware_classifier
+from backend.core.static_analysis import analyze_static
 
 # Try to import Androguard for manifest parsing
 try:
@@ -79,10 +81,10 @@ async def upload_and_analyze_apk(file: UploadFile = File(...)):
 
 
 @router.post("/analyze")
-async def analyze_apk_pipeline(file: UploadFile = File(...)):
+async def analyze_apk_pipeline(file: UploadFile = File(...), deep_decompile: bool = False):
     """
     Unified Static Analysis Endpoint.
-    Executes the complete static analysis pipeline (Phases 1-9).
+    Executes the complete static analysis pipeline with fast DEX-level static risk engine v2.
     """
     if not file.filename or not file.filename.lower().endswith(".apk"):
         raise HTTPException(status_code=400, detail="Invalid file format. Please upload a valid .apk file.")
@@ -134,6 +136,35 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
         if apk_obj:
             logger.info(f"[PERFORMANCE] Stage 'androguard_apk_load': {time.time() - t0_andro:.3f}s")
         
+        # 3. Static Risk Engine v2 (Pure DEX/Manifest extraction, non-blocking)
+        t0_static_eng = time.time()
+        try:
+            static_result = await asyncio.to_thread(analyze_static, file_path)
+        except Exception as e:
+            logger.error(f"Static risk engine failed or file is mocked: {e}")
+            static_result = {
+                "overall": 0.0,
+                "level": "CLEAN",
+                "risk_score": 0.0,
+                "threat_level": "CLEAN",
+                "scores": {},
+                "score_weights": {},
+                "permission_findings": [],
+                "flagged_permissions": [],
+                "behavior_findings": [],
+                "toxic_combinations": [],
+                "exposed_components": [],
+                "manifest_flags": {},
+                "signature": {},
+                "embedded_payloads": [],
+                "yara_matches": [],
+                "secrets_found": [],
+                "top_reasons": [],
+                "warnings": [str(e)],
+                "timings": {},
+            }
+        logger.info(f"[PERFORMANCE] Stage 'static_risk_engine': {time.time() - t0_static_eng:.3f}s")
+
         # robust wrapper
         def safe_run(func, *args, default_ret={}):
             try:
@@ -142,25 +173,45 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
                 logger.error(f"Scanner {func.__name__} failed: {e}")
                 return {"error": str(e), **default_ret}
 
-        # Concurrently execute independent static analysis phases (Phases 3-8) via ThreadPoolExecutor
+        # Concurrently execute independent static analysis phases via ThreadPoolExecutor
         t0_phases = time.time()
         max_workers = min(8, os.cpu_count() or 6)
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             fut_manifest = executor.submit(safe_run, analyze_manifest, apk_obj)
             fut_cert = executor.submit(safe_run, scan_certificates, file_path, apk_obj, default_ret=[])
-            fut_code = executor.submit(safe_run, analyze_code, file_path)
             fut_res = executor.submit(safe_run, analyze_resources, extract_dir)
             fut_native = executor.submit(safe_run, analyze_native_libs, extract_dir)
-            fut_yara = executor.submit(safe_run, run_yara_scan, extract_dir, default_ret=[])
+            if deep_decompile:
+                fut_code = executor.submit(safe_run, analyze_code, file_path)
+                fut_yara = executor.submit(safe_run, run_yara_scan, extract_dir, default_ret=[])
+            else:
+                fut_code = None
+                fut_yara = None
 
             manifest_results = fut_manifest.result()
             cert_results = fut_cert.result()
             if isinstance(cert_results, dict) and "error" in cert_results:
                 cert_results = []
-            code_results = fut_code.result()
+            if deep_decompile and fut_code:
+                code_results = fut_code.result()
+            else:
+                code_results = {
+                    "analyzed_files": 0,
+                    "suspicious_apis": [
+                        {"api": b.get("behavior", ""), "severity": "High" if b.get("severity", 0) >= 7 else "Medium", "description": b.get("description", "")}
+                        for b in static_result.get("behavior_findings", [])
+                    ],
+                    "malware_indicators": [],
+                    "obfuscation_findings": [],
+                    "codebert_similarity": {},
+                    "deep_decompile": False,
+                }
             resource_results = fut_res.result()
             native_results = fut_native.result()
-            yara_results = fut_yara.result()
+            if deep_decompile and fut_yara:
+                yara_results = fut_yara.result()
+            else:
+                yara_results = static_result.get("yara_matches", [])
             if isinstance(yara_results, dict) and "error" in yara_results:
                 yara_results = []
         logger.info(f"[PERFORMANCE] Stage 'concurrent_static_scanners': {time.time() - t0_phases:.3f}s")
@@ -180,18 +231,20 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
         )
         logger.info(f"[PERFORMANCE] Stage 'ml_classification': {time.time() - t0_ml:.3f}s")
 
-        # 10. Risk Correlation Engine
-        t0_risk = time.time()
-        risk_results = calculate_risk(
-            manifest_results, 
-            code_results, 
-            resource_results, 
-            native_results, 
-            yara_results,
-            cert_results,
-            ml_results
-        )
-        logger.info(f"[PERFORMANCE] Stage 'risk_correlation': {time.time() - t0_risk:.3f}s")
+        # 10. Static Risk Engine v2 Result Mapping
+        level_val = "Safe" if (static_result["overall"] == 0 and static_result["level"] == "CLEAN") else static_result["level"]
+        risk_results = {
+            **static_result,
+            "score": static_result["overall"],
+            "level": level_val,
+            "risk_score": static_result["overall"],
+            "threat_level": static_result["level"],
+            "factors": static_result.get("top_reasons", []),
+            "recommendations": [
+                f"Review necessity of permission: {p}"
+                for p in static_result.get("flagged_permissions", [])
+            ] or ["No high-risk permissions detected."],
+        }
         
         # 11. IOC Generator
         t0_ioc = time.time()
@@ -220,7 +273,19 @@ async def analyze_apk_pipeline(file: UploadFile = File(...)):
             "ml_classification": ml_results,
             "static_feature_vector": feature_vector,
             "risk_analysis": risk_results,
-            "iocs": ioc_results
+            "iocs": ioc_results,
+            # Direct aliases
+            "overall": static_result["overall"],
+            "level": static_result["level"],
+            "risk_score": static_result["overall"],
+            "threat_level": static_result["level"],
+            "scores": static_result["scores"],
+            "permission_findings": static_result.get("permission_findings", []),
+            "toxic_combinations": static_result.get("toxic_combinations", []),
+            "top_reasons": static_result.get("top_reasons", []),
+            "publisher_verified": static_result.get("publisher_verified", False),
+            "confidence": static_result.get("confidence", "low"),
+            "timings": static_result.get("timings", {}),
         }
         
         with open(os.path.join(RESULTS_DIR, f"{apk_id}_report.json"), "w") as f:

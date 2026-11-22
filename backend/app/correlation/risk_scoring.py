@@ -94,17 +94,28 @@ def compute_risk_score(
             contributing_factors.append(f"[CONFIRMED THREAT] {ct}")
 
     # 1. Dangerous Permissions Score
-    dang_perms = manifest.get("declared_dangerous_permissions", [])
-    if not dang_perms and "dangerous_permissions" in manifest:
-        dang_perms = manifest.get("dangerous_permissions", [])
-
-    if dang_perms:
-        perm_score = min(30, len(dang_perms) * 10)
+    static_risk = static.get("risk_analysis", static_results.get("risk_analysis", {}))
+    if isinstance(static_risk, dict) and "flagged_permissions" in static_risk:
+        flagged = static_risk.get("flagged_permissions", [])
+        perm_score = min(30, int(len(flagged) * 10))
         score_breakdown["dangerous_permissions_score"] = perm_score
-        perm_names = ", ".join([p.rsplit(".", 1)[-1] for p in dang_perms[:3]])
-        contributing_factors.append(
-            f"Requested {len(dang_perms)} dangerous permission(s) ({perm_names})"
-        )
+        if flagged:
+            perm_names = ", ".join([p.rsplit(".", 1)[-1] for p in flagged[:3]])
+            contributing_factors.append(
+                f"Requested {len(flagged)} unjustified dangerous permission(s) ({perm_names})"
+            )
+    else:
+        dang_perms = manifest.get("declared_dangerous_permissions", [])
+        if not dang_perms and "dangerous_permissions" in manifest:
+            dang_perms = manifest.get("dangerous_permissions", [])
+
+        if dang_perms:
+            perm_score = min(30, len(dang_perms) * 10)
+            score_breakdown["dangerous_permissions_score"] = perm_score
+            perm_names = ", ".join([p.rsplit(".", 1)[-1] for p in dang_perms[:3]])
+            contributing_factors.append(
+                f"Requested {len(dang_perms)} dangerous permission(s) ({perm_names})"
+            )
 
     # 2. YARA Signature Rule Matches Score
     yara_matches = sig_check.get("yara_matches", [])
