@@ -47,6 +47,5 @@ sandbox/
 ├── emulator_config.py       # Configuration constants (AVD name, binary path, snapshot settings)
 ├── frida_scripts/           # Frida dynamic hooking JS scripts (crypto, network, SMS, API tracing)
 ├── mitmproxy_config/        # mitmproxy addon scripts and CA certificates
-├── emulator_config/         # Shell setup scripts
 └── README.md                # Sandbox documentation
 ```

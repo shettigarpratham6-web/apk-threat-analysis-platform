@@ -155,7 +155,7 @@ apk-threat-analysis-platform/
 │   ├── emulator_config.py                # Sandbox configuration constants
 │   ├── frida_helper.py                   # Frida script deployment helper
 │   ├── network_analyzer.py               # PCAP and flow analyzer
-│   └── mitm_config/                      # mitmproxy addon scripts
+│   └── mitmproxy_config/                 # mitmproxy addon scripts
 ├── tools/                                # External binary tooling
 │   └── jadx/                             # JADX DEX decompiler v1.4.7
 │       └── bin/jadx.bat                  # JADX Windows executable
