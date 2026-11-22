@@ -13,6 +13,7 @@ The platform integrates:
 - **Drebin-Trained Random Forest Threat Classifier**: 215-feature binary static vector evaluation producing calibrated malware probability scores.
 - **AI-Powered Reasoning Layer**: OpenRouter integration leveraging Meta Llama 3.3 70B for executive threat narratives and Qwen 2.5 Coder 32B for reverse-engineering obfuscated code.
 - **Dynamic Sandbox & Interactive Phone HUD**: Android Emulator (AVD) management with low-latency ADB screen streaming, interactive touch/tap dispatch, and responsive SVG canvas fallback.
+- **Analyst Authentication & Route Protection**: Session management backed by signed HS256 JWT in `httpOnly` cookies (`apk_session`), bcrypt password hashing (cost 12), in-memory brute-force protection (5 failures / 15 min), and route authorization on all static, dynamic, correlation, and reporting endpoints.
 - **C2 Detection & Behavioral Engine**: Mathematical beaconing interval jitter analysis, Shannon entropy Domain Generation Algorithm (DGA) detection, non-standard port auditing, and static-to-dynamic indicator cross-referencing.
 - **Threat Intelligence & Server Reputation**: VirusTotal and AbuseIPDB querying with aggressive in-memory caching.
 - **Unified Risk Correlation & Forensic Reporting**: Transparent scoring (0–100), MITRE ATT&CK mapping, and automated export to ReportLab PDF, interactive HTML, structured JSON, and IOC CSV.
@@ -54,6 +55,14 @@ The platform integrates:
 - **Multi-Vector Threat Confirmation**: Correlates static declarations with runtime evidence (e.g., SMS trojan, Dropper, Active C2, Shell execution).
 - **Multi-Format Export**: Generates professional ReportLab PDF reports, interactive browser-rendered HTML reports, full JSON forensic dumps (`_report.json`), and IOC exports (CSV & JSON).
 
+### 🔐 6. Analyst Authentication & Session Security
+- **Cookie Session Architecture**: Signed HS256 JWT stored in an `httpOnly`, `SameSite=Lax` cookie (`apk_session`), with optional `COOKIE_SECURE=true`. Enables seamless authorization for `<iframe>` report viewers and `<img>` device screen streams without requiring Bearer token headers.
+- **Password Security**: Passwords hashed using `bcrypt` (12 rounds) with length (8–72 bytes) and complexity validation (letters + numbers).
+- **Anti-Brute Force & Enumeration**: In-memory rate limiting allows maximum 5 failed attempts within a 15-minute rolling window per client IP and email. Constant-time dummy hash verification prevents timing-based user enumeration.
+- **Route Authorization**: All static analysis, dynamic sandbox, correlation, and reporting endpoints are gated behind the `get_current_user` FastAPI dependency when `AUTH_PROTECT_API=true`.
+- **Frontend Route Protection**: Hand-rolled React route guards bounce unauthenticated requests on `/test`, `/analysis`, and `/dashboard` to `/login?next=...`, with strict same-origin validation (`getSafeNext`) blocking open-redirect exploits.
+- **Analyst Registration**: Built-in test account (`live_analyst@example.com` / `ValidPassword123`) or registration via the `/signup` screen with an authorized-use acknowledgment terms checkbox.
+
 ---
 
 ## 📁 Project Architecture & Structure
@@ -76,6 +85,7 @@ apk-threat-analysis-platform/
 │   │   │   ├── report_generator.py       # ReportLab PDF & HTML compilation
 │   │   │   └── templates/                # Jinja2 HTML report templates
 │   │   ├── routes/                       # FastAPI REST API endpoints
+│   │   │   ├── auth.py                   # /api/auth login, signup, logout, and me routes
 │   │   │   ├── correlation.py            # /api/correlation routes
 │   │   │   ├── dynamic_analysis.py       # /api/dynamic-analysis routes & phone HUD
 │   │   │   ├── reporting.py              # /api/report download & view routes
@@ -95,15 +105,23 @@ apk-threat-analysis-platform/
 │   ├── core/                             # Core pipeline & ML classifier
 │   │   └── static_analysis/
 │   │       └── ml_classifier.py          # Random Forest 215-feature Drebin classifier
+│   ├── database/                         # Database and ORM layer
+│   │   ├── crud.py                       # User database queries and updates
+│   │   ├── database.py                   # SQLAlchemy engine, sessionmaker, and get_db dependency
+│   │   └── models.py                     # SQLAlchemy User model
+│   ├── data/                             # SQLite persistent database storage (app.db)
 │   ├── results/                          # Generated JSON, HTML, PDF & IOC reports
 │   ├── uploads/                          # Temporary uploaded APK storage
-│   ├── main.py                           # FastAPI application entry point & CORS
+│   ├── main.py                           # FastAPI application entry point, CORS & auth router
 │   └── requirements.txt                  # Python package dependencies
 ├── frontend/                             # React + Vite web application
 │   ├── public/                           # Static assets and icons
 │   ├── src/
 │   │   ├── api/                          # REST client & fetch helpers
-│   │   │   └── client.js                 # Unified API client implementation
+│   │   │   ├── auth.js                   # Authentication API endpoints (login, signup, logout, me)
+│   │   │   └── client.js                 # Unified API client with credentials inclusion
+│   │   ├── auth/                         # Session context & route guards
+│   │   │   └── AuthContext.jsx           # AuthProvider & getSafeNext open-redirect protection
 │   │   ├── components/                   # React UI components
 │   │   │   ├── LiveVirtualDevice.jsx     # Live Android phone HUD & touch controller
 │   │   │   ├── PipelineStepper.jsx       # Multi-stage analysis step indicator
@@ -112,13 +130,18 @@ apk-threat-analysis-platform/
 │   │   │   ├── ThreatDashboard.jsx       # Threat metrics & C2 indicators
 │   │   │   ├── UploadAPK.jsx             # Drag-and-drop file upload zone
 │   │   │   └── IOCTable.jsx              # Extracted Indicators of Compromise table
+│   │   ├── hooks/                        # Shared custom hooks
+│   │   │   └── useVantaGlobe.js          # Shared Vanta 3D globe background hook
 │   │   ├── pages/                        # Application pages
-│   │   │   ├── LandingPage.jsx           # Cyber landing page with 3D laptop & animations
+│   │   │   ├── AuthPage.jsx              # Cyberpunk Login & Signup interface
+│   │   │   ├── AuthPage.css              # Glass card styling & password strength meter
+│   │   │   ├── LandingPage.jsx           # Cyber landing page with auth-aware navigation
 │   │   │   ├── LandingPage.css           # Full-page cybersecurity animated styling
 │   │   │   ├── Analysis.jsx              # Real-time static & dynamic workflow page
-│   │   │   └── Report.jsx                # Forensic report view & download page
-│   │   ├── App.jsx                       # Routing & root layout
-│   │   └── main.jsx                      # React DOM mount point
+│   │   │   ├── Report.jsx                # Forensic report view & download page
+│   │   │   └── TestingDashboard.jsx      # Testing dashboard with LOGOUT action
+│   │   ├── App.jsx                       # Hand-rolled routing & route guards
+│   │   └── main.jsx                      # React DOM mount point with AuthProvider
 │   └── package.json                      # Frontend dependencies & Vite scripts
 ├── ml/                                   # Machine Learning artifacts
 │   └── models/
@@ -143,7 +166,9 @@ apk-threat-analysis-platform/
 ├── datasets/                             # Test APK samples
 │   ├── benign/                           # Benign test APKs (e.g. BenignDemo.apk)
 │   └── malicious/                        # Malicious test APKs (e.g. C2Simulator.apk)
-├── tests/                                # Automated test suite (55 tests)
+├── tests/                                # Automated test suite (64 tests)
+│   ├── conftest.py                       # Test bootstrap & environment configuration
+│   ├── test_auth.py                      # Authentication, lockout & session test suite
 │   ├── test_static_analysis.py           # Static pipeline & manifest parsing tests
 │   ├── test_dynamic_analysis.py          # Dynamic sandbox & screen tests
 │   ├── test_c2_detector.py               # C2 beaconing & network tests
@@ -174,6 +199,8 @@ apk-threat-analysis-platform/
 | **Dynamic Sandbox** | Android SDK & ADB | AVD execution, screencap caching, touch dispatch |
 | **Traffic Interception**| mitmproxy & Frida | SSL unpinning and live request stream capture |
 | **Threat Intelligence**| VirusTotal & AbuseIPDB | In-memory cached IP and domain scoring |
+| **Database & ORM** | SQLAlchemy 2 + SQLite | Declarative ORM, session management, and persistent user store |
+| **Authentication & JWT**| PyJWT + bcrypt | HS256 signed httpOnly cookies, bcrypt hashing (cost 12) |
 | **Frontend UI** | React 18 + Vite | Cyber glassmorphism HUD, interactive phone screen |
 
 ---
@@ -222,7 +249,20 @@ HEADLESS_MODE=true
 # Service URLs
 API_BASE_URL="http://localhost:8000"
 VITE_API_BASE_URL="http://localhost:8000"
+
+# Authentication & Session Configuration
+# Generate a secret with: python -c "import secrets; print(secrets.token_urlsafe(48))"
+JWT_SECRET="your_random_48_char_secret_here"
+JWT_EXPIRE_MINUTES=480
+COOKIE_SECURE=false
+AUTH_PROTECT_API=true
+DATABASE_URL=""
 ```
+
+> **Default Pre-Configured Analyst Account:**  
+> - **Email:** `live_analyst@example.com`  
+> - **Password:** `ValidPassword123`  
+> You can also register a new analyst account directly on the web application at [http://localhost:5173/signup](http://localhost:5173/signup).
 
 ---
 
@@ -283,7 +323,7 @@ VITE_API_BASE_URL="http://localhost:8000"
 
 ## 🧪 Automated Testing & Verification
 
-The repository contains 55 comprehensive unit and integration tests covering static parsing, JADX decompilation, the 215-feature Random Forest classifier, C2 beaconing algorithms, risk correlation formulas, ReportLab PDF compilation, and dynamic screen streaming.
+The repository contains 64 comprehensive unit and integration tests covering user authentication & brute-force protection, static parsing, JADX decompilation, the 215-feature Random Forest classifier, C2 beaconing algorithms, risk correlation formulas, ReportLab PDF compilation, and dynamic screen streaming.
 
 Run the complete test suite:
 
@@ -298,12 +338,22 @@ PYTHONPATH="." pytest -v
 
 **Expected Result:**
 ```text
-============================== 55 passed in ~35s ==============================
+============================== 64 passed in ~43s ==============================
 ```
 
 ---
 
 ## 📡 REST API Reference
+
+### Authentication & Session Management
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/auth/signup` | Registers a new analyst account and sets the signed `apk_session` httpOnly cookie. |
+| `POST` | `/api/auth/login` | Validates credentials (with rate-limiting) and sets the `apk_session` httpOnly cookie. |
+| `POST` | `/api/auth/logout` | Clears the `apk_session` session cookie. |
+| `GET`  | `/api/auth/me` | Returns current analyst user profile (`id`, `email`, `full_name`, `created_at`). |
+
+> **Route Protection Note:** When `AUTH_PROTECT_API=true` (default), all analysis routes (`/api/static-analysis/*`, `/api/dynamic-analysis/*`, `/api/correlation/*`, and `/api/report/*`) require an active session cookie or Bearer token (unauthenticated requests return `401 Unauthorized`). The `/health` endpoint remains public.
 
 ### Static Analysis
 | Method | Endpoint | Description |
